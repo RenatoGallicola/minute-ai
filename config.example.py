@@ -19,10 +19,10 @@ DEFAULT_CLEANUP_MODEL = "llama3.1"
 DEFAULT_SUMMARY_MODEL = "llama3.1"
 DEFAULT_SUMMARY_LANGUAGE = "same"     # same | it | en | fr | etc.
 
+# Pipeline
+DEFAULT_MODE = "full"                 # full | transcript | clean | summary
+
 # Export
 DEFAULT_OUTPUT_DIR = "outputs"
-DEFAULT_FORMAT = "md"                 # md | txt | all
-
-# Cleanup and summary
-DEFAULT_CLEANUP = True
-DEFAULT_SUMMARY = True
+DEFAULT_FORMAT = "md"                 # md | txt | docx | pdf | all
+DEFAULT_EXPORT_CONTENT = "full"       # full | summary

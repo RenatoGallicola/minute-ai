@@ -26,8 +26,10 @@ Full usage:
         --speaker-names "Marco,Sara" \
         --meeting-name "Q3 Kickoff" \
         --model medium \
+        --mode full \
         --summary-language it \
-        --format md
+        --format pdf \
+        --export-content summary
 """
 
 import argparse
@@ -51,7 +53,7 @@ def parse_args():
         formatter_class=argparse.RawTextHelpFormatter
     )
 
-    # Input — one or more files or folders
+    # Input
     parser.add_argument(
         "audio",
         nargs="+",
@@ -72,7 +74,7 @@ def parse_args():
     parser.add_argument(
         "--speaker-names",
         default=None,
-        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'\n(only used when processing a single file)"
+        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'\n(single file only)"
     )
     parser.add_argument(
         "--model", "-m",
@@ -85,26 +87,28 @@ def parse_args():
     parser.add_argument(
         "--meeting-name", "-n",
         default=None,
-        help="Human-readable meeting name (default: audio filename)\n(only used when processing a single file)"
+        help="Human-readable meeting name (default: audio filename)\n(single file only)"
     )
 
-    # Cleanup
+    # Pipeline mode
     parser.add_argument(
-        "--no-cleanup",
-        action="store_true",
-        help="Disable transcript cleanup with LLM"
+        "--mode",
+        default="full",
+        choices=["full", "transcript", "clean", "summary"],
+        help=(
+            "Pipeline mode (default: full)\n"
+            "  full       — transcribe + cleanup + summary\n"
+            "  transcript — transcribe only\n"
+            "  clean      — transcribe + cleanup, no summary\n"
+            "  summary    — transcribe + summary, no cleanup"
+        )
     )
+
+    # LLM models
     parser.add_argument(
         "--cleanup-model",
         default=config.DEFAULT_CLEANUP_MODEL,
         help=f"Ollama model for cleanup (default: {config.DEFAULT_CLEANUP_MODEL})"
-    )
-
-    # Summary
-    parser.add_argument(
-        "--no-summary",
-        action="store_true",
-        help="Disable summary generation"
     )
     parser.add_argument(
         "--summary-model",
@@ -126,8 +130,18 @@ def parse_args():
     parser.add_argument(
         "--format", "-f",
         default=config.DEFAULT_FORMAT,
-        choices=["md", "txt", "all"],
+        choices=["md", "txt", "docx", "pdf", "all"],
         help=f"Output format (default: {config.DEFAULT_FORMAT})"
+    )
+    parser.add_argument(
+        "--export-content",
+        default="full",
+        choices=["full", "summary"],
+        help=(
+            "What to include in the exported file (default: full)\n"
+            "  full    — summary + full transcript\n"
+            "  summary — summary only"
+        )
     )
 
     # Batch
@@ -152,9 +166,11 @@ def parse_args():
 
 
 def validate_args(args):
-    """Validates arguments before starting."""
+    """Validates arguments and catches invalid combinations."""
+    log = get_logger()
+
     if config.HF_TOKEN == "hf_XXXXXXXXXX":
-        print("[ERROR] Please insert your HF_TOKEN in config.py")
+        log.error("Please insert your HF_TOKEN in config.py")
         sys.exit(1)
 
     # Convert speakers to int if not 'auto'
@@ -162,28 +178,33 @@ def validate_args(args):
         try:
             args.speakers = int(args.speakers)
         except ValueError:
-            print(f"[ERROR] --speakers must be an integer or 'auto', got '{args.speakers}'")
+            log.error(f"--speakers must be an integer or 'auto', got '{args.speakers}'")
             sys.exit(1)
     else:
         args.speakers = None
+
+    # Check invalid mode + export-content combinations
+    modes_without_summary = ("transcript", "clean")
+    if args.export_content == "summary" and args.mode in modes_without_summary:
+        log.error(
+            f"--export-content summary requires a summary, "
+            f"but --mode {args.mode} does not generate one.\n"
+            f"Use --mode full or --mode summary to generate a summary."
+        )
+        sys.exit(1)
 
     return args
 
 
 def process_single(audio_path: str, args) -> list[str]:
-    """
-    Runs the full pipeline on a single audio file.
+    """Runs the full pipeline on a single audio file."""
+    log = get_logger()
 
-    Args:
-        audio_path: Path to the audio file
-        args:       Parsed CLI arguments
-
-    Returns:
-        List of output file paths
-    """
-    # Derive meeting name from filename if not specified
     meeting_name = args.meeting_name or \
         Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+
+    do_cleanup = args.mode in ("full", "clean")
+    do_summary = args.mode in ("full", "summary")
 
     # Step 1: Transcription + diarization
     segments, detected_language = transcribe(
@@ -195,13 +216,12 @@ def process_single(audio_path: str, args) -> list[str]:
         hf_token=config.HF_TOKEN,
     )
 
-    # Map speaker labels to real names (single file only)
     speaker_names = args.speaker_names if len(args.audio) == 1 else None
     speaker_map = build_speaker_map(segments, speaker_names)
     transcript = format_transcript(segments, speaker_map)
 
-    # Step 2: Transcript cleanup
-    if not args.no_cleanup:
+    # Step 2: Cleanup
+    if do_cleanup:
         transcript = cleanup_transcript(
             transcript=transcript,
             model=args.cleanup_model,
@@ -209,11 +229,11 @@ def process_single(audio_path: str, args) -> list[str]:
             language=detected_language,
         )
     else:
-        print("\n[2/4] Transcript cleanup: skipped.")
+        log.info("[2/4] Transcript cleanup: skipped.")
 
     # Step 3: Summary
     summary = ""
-    if not args.no_summary:
+    if do_summary:
         summary = summarize_transcript(
             transcript=transcript,
             model=args.summary_model,
@@ -222,10 +242,10 @@ def process_single(audio_path: str, args) -> list[str]:
             summary_language=args.summary_language,
         )
     else:
-        print("\n[3/4] Summary: skipped.")
+        log.info("[3/4] Summary: skipped.")
 
     # Step 4: Export
-    print(f"\n[4/4] Exporting files...")
+    log.info("[4/4] Exporting files...")
     output_files = export(
         audio_path=audio_path,
         meeting_name=meeting_name,
@@ -234,6 +254,7 @@ def process_single(audio_path: str, args) -> list[str]:
         language=detected_language,
         output_dir=args.output_dir,
         fmt=args.format,
+        export_content=args.export_content,
     )
 
     return output_files
@@ -249,11 +270,11 @@ def main():
 
     args = validate_args(args)
 
-    # Collect all audio files from inputs
+    # Collect all audio files
     audio_files = collect_audio_files(args.audio)
 
     if not audio_files:
-        print("[ERROR] No valid audio files found.")
+        log.error("No valid audio files found.")
         sys.exit(1)
 
     is_batch = len(audio_files) > 1
@@ -264,34 +285,32 @@ def main():
         meeting_name = args.meeting_name or \
             Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
 
-        print("=" * 55)
-        print("  minute-ai")
-        print(f"  {meeting_name}")
-        print("=" * 55)
+        log.info("=" * 55)
+        log.info(f"minute-ai — {meeting_name}")
+        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content}")
+        log.info("=" * 55)
 
         output_files = process_single(audio_path, args)
 
-        print("\n" + "=" * 55)
-        print("  DONE")
+        log.info("=" * 55)
+        log.info("DONE")
         for f in output_files:
-            print(f"  → {f}")
-        print("=" * 55)
+            log.info(f"  → {f}")
+        log.info("=" * 55)
 
     # Batch mode
     else:
-        print("=" * 55)
-        print("  minute-ai — BATCH MODE")
-        print(f"  Found {len(audio_files)} file(s)")
-        if args.parallel:
-            print(f"  Mode: parallel ({args.parallel_workers} workers)")
-        else:
-            print("  Mode: sequential")
-        print("=" * 55)
+        log.info("=" * 55)
+        log.info("minute-ai — BATCH MODE")
+        log.info(f"Found {len(audio_files)} file(s)")
+        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content}")
+        log.info(f"Parallel: {'yes' if args.parallel else 'no'}")
+        log.info("=" * 55)
 
         if args.meeting_name:
-            print("[WARNING] --meeting-name is ignored in batch mode (filename is used instead)")
+            log.warning("--meeting-name is ignored in batch mode (filename is used instead)")
         if args.speaker_names:
-            print("[WARNING] --speaker-names is ignored in batch mode")
+            log.warning("--speaker-names is ignored in batch mode")
 
         results = run_batch(
             audio_files=audio_files,
