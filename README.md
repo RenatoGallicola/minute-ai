@@ -118,9 +118,11 @@ minute-ai/
 │   ├── cleanup.py      # Ollama: transcript cleanup
 │   ├── summarize.py    # Ollama: structured summary
 │   ├── export.py       # Markdown/txt export
-│   └── batch.py        # Batch processing logic
+│   ├── batch.py        # Batch processing logic
+│   └── logger.py       # Centralized logging
 ├── inputs/             # Audio files (git-ignored)
 ├── outputs/            # Generated files (git-ignored)
+├── logs/               # Log files (git-ignored)
 ├── main.py             # Entry point
 ├── config.py           # Local config (do not commit!)
 ├── config.example.py   # Config template

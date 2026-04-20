@@ -7,6 +7,7 @@ Exports the transcript and summary to the requested formats.
 import os
 from datetime import datetime
 from pathlib import Path
+from src.logger import get_logger
 
 
 def export(
@@ -33,6 +34,7 @@ def export(
     Returns:
         List of paths of created files
     """
+    log = get_logger()
     os.makedirs(output_dir, exist_ok=True)
 
     audio_stem = Path(audio_path).stem
@@ -46,11 +48,13 @@ def export(
         md_path = os.path.join(output_dir, f"{base_filename}.md")
         _write_markdown(md_path, meeting_name, audio_stem, language, summary, transcript)
         created_files.append(md_path)
+        log.info(f"      Exported: {md_path}")
 
     if fmt in ("txt", "all"):
         txt_path = os.path.join(output_dir, f"{base_filename}.txt")
         _write_txt(txt_path, meeting_name, summary, transcript)
         created_files.append(txt_path)
+        log.info(f"      Exported: {txt_path}")
 
     return created_files
 
@@ -90,7 +94,6 @@ def _write_txt(path, meeting_name, summary, transcript):
     ]
 
     if summary:
-        # Strip Markdown formatting for plain text
         clean_summary = summary.replace("## ", "").replace("**", "")
         lines += ["SUMMARY", "-" * 40, clean_summary, "", "=" * 60, ""]
 

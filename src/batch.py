@@ -9,6 +9,7 @@ import os
 import glob
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.logger import get_logger
 
 
 SUPPORTED_EXTENSIONS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".wma", ".aac"}
@@ -24,6 +25,7 @@ def collect_audio_files(inputs: list[str]) -> list[str]:
     Returns:
         Deduplicated list of audio file paths
     """
+    log = get_logger()
     collected = []
 
     for input_path in inputs:
@@ -33,7 +35,7 @@ def collect_audio_files(inputs: list[str]) -> list[str]:
             if path.suffix.lower() in SUPPORTED_EXTENSIONS:
                 collected.append(str(path))
             else:
-                print(f"[WARNING] Skipping unsupported file format: {input_path}")
+                log.warning(f"Skipping unsupported file format: {input_path}")
 
         elif path.is_dir():
             found = []
@@ -41,11 +43,11 @@ def collect_audio_files(inputs: list[str]) -> list[str]:
                 found.extend(glob.glob(str(path / f"*{ext}")))
                 found.extend(glob.glob(str(path / f"*{ext.upper()}")))
             if not found:
-                print(f"[WARNING] No audio files found in folder: {input_path}")
+                log.warning(f"No audio files found in folder: {input_path}")
             collected.extend(found)
 
         else:
-            print(f"[WARNING] Path not found: {input_path}")
+            log.warning(f"Path not found: {input_path}")
 
     # Deduplicate while preserving order
     seen = set()
@@ -72,6 +74,9 @@ def already_processed(audio_path: str, output_dir: str, fmt: str) -> bool:
     Returns:
         True if output already exists
     """
+    if not Path(output_dir).exists():
+        return False
+
     stem = Path(audio_path).stem.replace(" ", "_").replace("-", "_").lower()
     extensions = []
 
@@ -82,8 +87,6 @@ def already_processed(audio_path: str, output_dir: str, fmt: str) -> bool:
 
     for f in Path(output_dir).glob("*"):
         file_stem = f.stem.lower()
-        # Output files are named: YYYY-MM-DD_HH-MM_MeetingName
-        # Check if the stem of the audio file appears in the output filename
         if stem in file_stem and f.suffix in extensions:
             return True
 
@@ -114,23 +117,24 @@ def run_batch(
     Returns:
         Dict with 'success', 'skipped', 'failed' lists
     """
+    log = get_logger()
     results = {"success": [], "skipped": [], "failed": []}
 
     # Filter out already-processed files unless --force
     to_process = []
     for audio in audio_files:
         if not force and already_processed(audio, output_dir, fmt):
-            print(f"[SKIP] Already processed: {Path(audio).name} (use --force to reprocess)")
+            log.info(f"[SKIP] Already processed: {Path(audio).name} (use --force to reprocess)")
             results["skipped"].append(audio)
         else:
             to_process.append(audio)
 
     if not to_process:
-        print("\nAll files already processed. Use --force to reprocess.")
+        log.info("All files already processed. Use --force to reprocess.")
         return results
 
     total = len(to_process)
-    print(f"\nProcessing {total} file(s){'in parallel' if parallel else ' sequentially'}...\n")
+    log.info(f"Processing {total} file(s) {'in parallel' if parallel else 'sequentially'}...")
 
     if parallel:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -139,41 +143,40 @@ def run_batch(
                 audio = futures[future]
                 name = Path(audio).name
                 try:
-                    output_files = future.result()
-                    print(f"[{i}/{total}] ✓ {name}")
+                    future.result()
+                    log.info(f"[{i}/{total}] Done: {name}")
                     results["success"].append(audio)
                 except Exception as e:
-                    print(f"[{i}/{total}] ✗ {name} — {e}")
+                    log.error(f"[{i}/{total}] Failed: {name} — {e}")
                     results["failed"].append(audio)
     else:
         for i, audio in enumerate(to_process, 1):
             name = Path(audio).name
-            print(f"\n{'=' * 55}")
-            print(f"  File {i}/{total}: {name}")
-            print(f"{'=' * 55}")
+            log.info(f"File {i}/{total}: {name}")
             try:
                 process_fn(audio)
                 results["success"].append(audio)
             except Exception as e:
-                print(f"\n[ERROR] Failed to process {name}: {e}")
+                log.error(f"Failed to process {name}: {e}")
                 results["failed"].append(audio)
 
     return results
 
 
 def print_batch_summary(results: dict):
-    """Prints a summary of batch processing results."""
+    """Prints and logs a summary of batch processing results."""
+    log = get_logger()
     total = len(results["success"]) + len(results["skipped"]) + len(results["failed"])
-    print(f"\n{'=' * 55}")
-    print(f"  BATCH SUMMARY ({total} file(s))")
-    print(f"{'=' * 55}")
-    print(f"  ✓ Processed:  {len(results['success'])}")
-    print(f"  → Skipped:    {len(results['skipped'])}")
-    print(f"  ✗ Failed:     {len(results['failed'])}")
+
+    log.info("=" * 55)
+    log.info(f"BATCH SUMMARY ({total} file(s))")
+    log.info(f"  Processed : {len(results['success'])}")
+    log.info(f"  Skipped   : {len(results['skipped'])}")
+    log.info(f"  Failed    : {len(results['failed'])}")
 
     if results["failed"]:
-        print("\n  Failed files:")
+        log.error("Failed files:")
         for f in results["failed"]:
-            print(f"    - {Path(f).name}")
+            log.error(f"  - {Path(f).name}")
 
-    print(f"{'=' * 55}")
+    log.info("=" * 55)

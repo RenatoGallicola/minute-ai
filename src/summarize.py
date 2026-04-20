@@ -5,6 +5,7 @@ Generates a structured meeting summary using a local LLM via Ollama.
 """
 
 from src.cleanup import call_ollama, check_ollama
+from src.logger import get_logger
 
 
 LANGUAGE_NAMES = {
@@ -37,14 +38,13 @@ def summarize_transcript(
     Returns:
         Structured summary in Markdown
     """
-    print(f"\n[3/4] Generating summary with {model}...")
+    log = get_logger()
+    log.info(f"[3/4] Generating summary with {model}...")
 
     if not check_ollama(host, model):
-        print(f"[WARNING] Ollama not reachable or model '{model}' not found.")
-        print("          Skipping summary step.")
+        log.warning(f"Ollama not reachable or model '{model}' not found. Skipping summary.")
         return ""
 
-    # Determine summary output language
     if summary_language == "same":
         output_lang = LANGUAGE_NAMES.get(transcript_language, transcript_language)
     else:
@@ -85,5 +85,5 @@ TRANSCRIPT:
 {transcript}"""
 
     summary = call_ollama(host, model, prompt)
-    print("      Summary generated.")
+    log.info("      Summary generated.")
     return summary

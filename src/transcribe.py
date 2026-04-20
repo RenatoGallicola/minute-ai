@@ -5,6 +5,7 @@ Audio transcription and speaker diarization using whisperX.
 """
 
 import sys
+from src.logger import get_logger
 
 
 def transcribe(
@@ -29,27 +30,29 @@ def transcribe(
     Returns:
         (segments, detected_language)
     """
+    log = get_logger()
+
     try:
         import whisperx
     except ImportError:
-        print("[ERROR] whisperx is not installed. Run: pip install whisperx")
+        log.error("whisperx is not installed. Run: pip install whisperx")
         sys.exit(1)
 
     device = "cpu"
     lang = language if language and language != "auto" else None
 
-    print(f"\n[1/4] Transcribing audio...")
-    print(f"      Model: {model_name} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'}")
+    log.info(f"[1/4] Transcribing audio: {audio_path}")
+    log.info(f"      Model: {model_name} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'}")
 
     # Load model and transcribe
     model = whisperx.load_model(model_name, device, compute_type=compute_type, language=lang)
     audio = whisperx.load_audio(audio_path)
     result = model.transcribe(audio, batch_size=8)
     detected_language = result.get("language", lang or "en")
-    print(f"      Detected language: {detected_language}")
+    log.info(f"      Detected language: {detected_language}")
 
     # Temporal alignment
-    print("      Aligning timestamps...")
+    log.info("      Aligning timestamps...")
     model_a, metadata = whisperx.load_align_model(language_code=detected_language, device=device)
     result = whisperx.align(
         result["segments"], model_a, metadata, audio, device,
@@ -57,7 +60,7 @@ def transcribe(
     )
 
     # Diarization
-    print("      Diarizing speakers...")
+    log.info("      Diarizing speakers...")
     diarize_kwargs = {}
     if num_speakers:
         diarize_kwargs["min_speakers"] = num_speakers
@@ -72,7 +75,7 @@ def transcribe(
     result = whisperx.assign_word_speakers(diarize_segments, result)
 
     segments = result["segments"]
-    print(f"      Done — {len(segments)} segments")
+    log.info(f"      Done — {len(segments)} segments")
     return segments, detected_language
 
 
@@ -98,7 +101,6 @@ def format_transcript(segments: list[dict], speaker_names: dict = None) -> str:
         if not text:
             continue
 
-        # Replace label with real name if available
         display_name = speaker
         if speaker_names:
             display_name = speaker_names.get(speaker, speaker)
@@ -131,13 +133,12 @@ def build_speaker_map(segments: list[dict], speaker_names_str: str) -> dict:
     if not speaker_names_str:
         return {}
 
-    # Find all unique speakers in order of appearance
     seen = []
     for seg in segments:
         sp = seg.get("speaker")
         if sp and sp not in seen:
             seen.append(sp)
-    seen.sort()  # SPEAKER_00, SPEAKER_01, etc.
+    seen.sort()
 
     names = [n.strip() for n in speaker_names_str.split(",")]
     return {sp: names[i] for i, sp in enumerate(seen) if i < len(names)}

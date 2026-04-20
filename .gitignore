@@ -7,6 +7,9 @@ outputs/
 # Audio files (often large)
 inputs/
 
+# Logs
+logs/
+
 # Python
 __pycache__/
 *.py[cod]

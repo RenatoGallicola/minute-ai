@@ -36,6 +36,7 @@ import os
 from pathlib import Path
 
 import config
+from src.logger import setup_logger, get_logger
 from src.transcribe import transcribe, format_transcript, build_speaker_map
 from src.cleanup import cleanup_transcript
 from src.summarize import summarize_transcript
@@ -240,6 +241,12 @@ def process_single(audio_path: str, args) -> list[str]:
 
 def main():
     args = parse_args()
+
+    # Initialize logger before anything else
+    log = setup_logger()
+    log.info("=" * 55)
+    log.info("minute-ai started")
+
     args = validate_args(args)
 
     # Collect all audio files from inputs
