@@ -4,8 +4,20 @@ minute-ai
 ---------
 Local pipeline for transcription, cleanup, and summarization of meeting audio.
 
-Basic usage:
+Single file:
     python main.py inputs/meeting.m4a
+
+Multiple files:
+    python main.py inputs/meeting1.m4a inputs/meeting2.m4a
+
+Entire folder:
+    python main.py inputs/
+
+Folder in parallel:
+    python main.py inputs/ --parallel
+
+Force reprocess already-processed files:
+    python main.py inputs/ --force
 
 Full usage:
     python main.py inputs/meeting.m4a \
@@ -28,6 +40,7 @@ from src.transcribe import transcribe, format_transcript, build_speaker_map
 from src.cleanup import cleanup_transcript
 from src.summarize import summarize_transcript
 from src.export import export
+from src.batch import collect_audio_files, run_batch, print_batch_summary
 
 
 def parse_args():
@@ -37,10 +50,11 @@ def parse_args():
         formatter_class=argparse.RawTextHelpFormatter
     )
 
-    # Input
+    # Input — one or more files or folders
     parser.add_argument(
         "audio",
-        help="Path to the audio file (mp3, m4a, wav, flac, etc.)"
+        nargs="+",
+        help="Path(s) to audio file(s) or folder(s) (mp3, m4a, wav, flac, etc.)"
     )
 
     # Transcription
@@ -57,7 +71,7 @@ def parse_args():
     parser.add_argument(
         "--speaker-names",
         default=None,
-        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'"
+        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'\n(only used when processing a single file)"
     )
     parser.add_argument(
         "--model", "-m",
@@ -70,7 +84,7 @@ def parse_args():
     parser.add_argument(
         "--meeting-name", "-n",
         default=None,
-        help="Human-readable meeting name (default: audio filename)"
+        help="Human-readable meeting name (default: audio filename)\n(only used when processing a single file)"
     )
 
     # Cleanup
@@ -115,15 +129,29 @@ def parse_args():
         help=f"Output format (default: {config.DEFAULT_FORMAT})"
     )
 
+    # Batch
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Process multiple files in parallel (faster but uses more RAM)"
+    )
+    parser.add_argument(
+        "--parallel-workers",
+        type=int,
+        default=2,
+        help="Number of parallel workers (default: 2, only used with --parallel)"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reprocess files even if output already exists"
+    )
+
     return parser.parse_args()
 
 
 def validate_args(args):
     """Validates arguments before starting."""
-    if not os.path.exists(args.audio):
-        print(f"[ERROR] File not found: {args.audio}")
-        sys.exit(1)
-
     if config.HF_TOKEN == "hf_XXXXXXXXXX":
         print("[ERROR] Please insert your HF_TOKEN in config.py")
         sys.exit(1)
@@ -138,25 +166,27 @@ def validate_args(args):
     else:
         args.speakers = None
 
-    # Default meeting name from filename
-    if not args.meeting_name:
-        args.meeting_name = Path(args.audio).stem.replace("_", " ").replace("-", " ").title()
-
     return args
 
 
-def main():
-    args = parse_args()
-    args = validate_args(args)
+def process_single(audio_path: str, args) -> list[str]:
+    """
+    Runs the full pipeline on a single audio file.
 
-    print("=" * 55)
-    print("  minute-ai")
-    print(f"  {args.meeting_name}")
-    print("=" * 55)
+    Args:
+        audio_path: Path to the audio file
+        args:       Parsed CLI arguments
 
-    # ── Step 1: Transcription + diarization ──
+    Returns:
+        List of output file paths
+    """
+    # Derive meeting name from filename if not specified
+    meeting_name = args.meeting_name or \
+        Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+
+    # Step 1: Transcription + diarization
     segments, detected_language = transcribe(
-        audio_path=args.audio,
+        audio_path=audio_path,
         language=args.language if args.language != "auto" else None,
         num_speakers=args.speakers,
         model_name=args.model,
@@ -164,13 +194,12 @@ def main():
         hf_token=config.HF_TOKEN,
     )
 
-    # Map speaker labels → real names
-    speaker_map = build_speaker_map(segments, args.speaker_names)
-
-    # Format transcript
+    # Map speaker labels to real names (single file only)
+    speaker_names = args.speaker_names if len(args.audio) == 1 else None
+    speaker_map = build_speaker_map(segments, speaker_names)
     transcript = format_transcript(segments, speaker_map)
 
-    # ── Step 2: Transcript cleanup ──
+    # Step 2: Transcript cleanup
     if not args.no_cleanup:
         transcript = cleanup_transcript(
             transcript=transcript,
@@ -181,7 +210,7 @@ def main():
     else:
         print("\n[2/4] Transcript cleanup: skipped.")
 
-    # ── Step 3: Summary ──
+    # Step 3: Summary
     summary = ""
     if not args.no_summary:
         summary = summarize_transcript(
@@ -194,11 +223,11 @@ def main():
     else:
         print("\n[3/4] Summary: skipped.")
 
-    # ── Step 4: Export ──
+    # Step 4: Export
     print(f"\n[4/4] Exporting files...")
     output_files = export(
-        audio_path=args.audio,
-        meeting_name=args.meeting_name,
+        audio_path=audio_path,
+        meeting_name=meeting_name,
         transcript=transcript,
         summary=summary,
         language=detected_language,
@@ -206,11 +235,68 @@ def main():
         fmt=args.format,
     )
 
-    print("\n" + "=" * 55)
-    print("  DONE")
-    for f in output_files:
-        print(f"  → {f}")
-    print("=" * 55)
+    return output_files
+
+
+def main():
+    args = parse_args()
+    args = validate_args(args)
+
+    # Collect all audio files from inputs
+    audio_files = collect_audio_files(args.audio)
+
+    if not audio_files:
+        print("[ERROR] No valid audio files found.")
+        sys.exit(1)
+
+    is_batch = len(audio_files) > 1
+
+    # Single file mode
+    if not is_batch:
+        audio_path = audio_files[0]
+        meeting_name = args.meeting_name or \
+            Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+
+        print("=" * 55)
+        print("  minute-ai")
+        print(f"  {meeting_name}")
+        print("=" * 55)
+
+        output_files = process_single(audio_path, args)
+
+        print("\n" + "=" * 55)
+        print("  DONE")
+        for f in output_files:
+            print(f"  → {f}")
+        print("=" * 55)
+
+    # Batch mode
+    else:
+        print("=" * 55)
+        print("  minute-ai — BATCH MODE")
+        print(f"  Found {len(audio_files)} file(s)")
+        if args.parallel:
+            print(f"  Mode: parallel ({args.parallel_workers} workers)")
+        else:
+            print("  Mode: sequential")
+        print("=" * 55)
+
+        if args.meeting_name:
+            print("[WARNING] --meeting-name is ignored in batch mode (filename is used instead)")
+        if args.speaker_names:
+            print("[WARNING] --speaker-names is ignored in batch mode")
+
+        results = run_batch(
+            audio_files=audio_files,
+            process_fn=lambda audio: process_single(audio, args),
+            parallel=args.parallel,
+            force=args.force,
+            output_dir=args.output_dir,
+            fmt=args.format,
+            max_workers=args.parallel_workers,
+        )
+
+        print_batch_summary(results)
 
 
 if __name__ == "__main__":

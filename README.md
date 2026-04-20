@@ -55,10 +55,22 @@ ollama pull llama3.1
 # Activate the venv (every time you open a new terminal)
 venv\Scripts\activate
 
-# Basic usage
+# Single file
 python main.py inputs/meeting.m4a
 
-# Full usage
+# Multiple files
+python main.py inputs/meeting1.m4a inputs/meeting2.m4a
+
+# Entire folder (sequential)
+python main.py inputs/
+
+# Entire folder (parallel)
+python main.py inputs/ --parallel
+
+# Force reprocess already-processed files
+python main.py inputs/ --force
+
+# Full usage (single file)
 python main.py inputs/meeting.m4a \
     --language en \
     --speakers 2 \
@@ -75,8 +87,8 @@ python main.py inputs/meeting.m4a \
 |---|---|---|
 | `--language` | `auto` | Audio language: `it`, `en`, `auto`, etc. |
 | `--speakers` | `auto` | Number of speakers or `auto` |
-| `--speaker-names` | — | Speaker names in order: `"Marco,Sara"` |
-| `--meeting-name` | filename | Human-readable meeting name |
+| `--speaker-names` | — | Speaker names in order: `"Marco,Sara"` (single file only) |
+| `--meeting-name` | filename | Human-readable meeting name (single file only) |
 | `--model` | `medium` | Whisper model: `tiny` `small` `medium` `large-v3` |
 | `--no-cleanup` | — | Disable transcript cleanup |
 | `--cleanup-model` | `llama3.1` | Ollama model for cleanup |
@@ -85,6 +97,15 @@ python main.py inputs/meeting.m4a \
 | `--summary-language` | `same` | Summary language: `same`, `it`, `en` |
 | `--output-dir` | `outputs/` | Output folder |
 | `--format` | `md` | Output format: `md`, `txt`, `all` |
+| `--parallel` | — | Process multiple files in parallel |
+| `--parallel-workers` | `2` | Number of parallel workers |
+| `--force` | — | Reprocess files even if output already exists |
+
+### Batch mode notes
+
+- `--speaker-names` and `--meeting-name` are ignored in batch mode (filename is used instead)
+- Sequential mode is recommended for CPU-only machines to avoid RAM issues
+- Parallel mode is useful when you have a GPU or many short files
 
 ---
 
@@ -96,7 +117,8 @@ minute-ai/
 │   ├── transcribe.py   # whisperX: transcription + diarization
 │   ├── cleanup.py      # Ollama: transcript cleanup
 │   ├── summarize.py    # Ollama: structured summary
-│   └── export.py       # Markdown/txt export
+│   ├── export.py       # Markdown/txt export
+│   └── batch.py        # Batch processing logic
 ├── inputs/             # Audio files (git-ignored)
 ├── outputs/            # Generated files (git-ignored)
 ├── main.py             # Entry point
@@ -111,6 +133,5 @@ minute-ai/
 
 - [ ] Graphical user interface (GUI)
 - [ ] Direct Notion API integration
-- [ ] Batch support (multiple files at once)
 - [ ] Export to additional formats (docx, pdf)
 - [ ] Automatic model selection based on available RAM
