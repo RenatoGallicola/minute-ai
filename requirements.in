@@ -1,0 +1,18 @@
+# minute-ai — Direct dependencies
+# This file lists only the packages you explicitly depend on.
+# Run `pip-compile requirements.in` to regenerate requirements.txt with pinned versions.
+# Run `pip install -r requirements.txt` to install.
+
+# Core
+requests
+
+# Transcription
+whisperx
+
+# Export formats
+python-docx
+reportlab
+
+# PyTorch — install manually with the command below for your platform:
+# pip install torch torchvision torchaudio
+# See https://pytorch.org/get-started/locally/ for GPU/CUDA variants

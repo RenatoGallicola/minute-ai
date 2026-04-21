@@ -1,7 +1,7 @@
 """
 logger.py
 ---------
-Centralized logging setup.
+Centralized logging setup for minute-ai.
 Logs to both terminal (stdout) and a persistent log file.
 """
 

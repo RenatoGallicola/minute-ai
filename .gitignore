@@ -21,7 +21,6 @@ dist/
 build/
 
 # Config with sensitive tokens — never commit!
-# (keep config.example.py without real tokens instead)
 config.py
 
 # OS
@@ -32,3 +31,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# pip-tools compiled file (optional: some teams commit this, some don't)
+# Uncomment the line below if you prefer not to commit the pinned requirements
+# requirements.txt

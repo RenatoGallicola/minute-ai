@@ -66,13 +66,12 @@ def transcribe(
         diarize_kwargs["min_speakers"] = num_speakers
         diarize_kwargs["max_speakers"] = num_speakers
 
-    diarize_model = whisperx.DiarizationPipeline(
-        model_name="pyannote/speaker-diarization-3.1",
-        use_auth_token=hf_token,
+    diarize_model = whisperx.diarize.DiarizationPipeline(
+        token=hf_token,
         device=device
     )
     diarize_segments = diarize_model(audio, **diarize_kwargs)
-    result = whisperx.assign_word_speakers(diarize_segments, result)
+    result = whisperx.diarize.assign_word_speakers(diarize_segments, result)
 
     segments = result["segments"]
     log.info(f"      Done — {len(segments)} segments")

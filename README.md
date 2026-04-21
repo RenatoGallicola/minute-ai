@@ -11,41 +11,74 @@ Everything runs on your PC — no data is sent to external servers.
 
 ---
 
+## Requirements
+
+- Python **3.10–3.12** (Python 3.13+ is not supported by whisperX)
+- [Ollama](https://ollama.com) installed and running
+- [HuggingFace](https://huggingface.co) account and token (free, required for diarization)
+
+---
+
 ## Installation
 
-### 1. Prerequisites
-
-- Python 3.10–3.12
-- [Ollama](https://ollama.com) installed and running
-- [HuggingFace](https://huggingface.co) token (free, required for diarization)
-
-### 2. Clone the repo and create the venv
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/yourname/minute-ai.git
 cd minute-ai
+```
+
+### 2. Create and activate the virtual environment
+
+```bash
 py -3.12 -m venv venv
 venv\Scripts\activate        # Windows cmd
 # source venv/bin/activate   # Mac/Linux
-pip install --upgrade pip
-pip install torch torchvision torchaudio
-pip install whisperx requests python-docx reportlab
 ```
 
-### 3. Configure
+### 3. Install dependencies
+
+```bash
+pip install --upgrade pip
+
+# Install PyTorch first (CPU version)
+pip install torch torchvision torchaudio
+# For GPU (CUDA) see: https://pytorch.org/get-started/locally/
+
+# Install all other dependencies
+pip install -r requirements.txt
+```
+
+> **Note:** `requirements.txt` contains all pinned transitive dependencies for reproducibility.  
+> `requirements.in` lists only the direct dependencies for reference.
+
+### 4. Configure
 
 ```bash
 copy config.example.py config.py   # Windows
 # cp config.example.py config.py   # Mac/Linux
 ```
 
-Open `config.py` and insert your `HF_TOKEN`.
+Open `config.py` and insert your `HF_TOKEN` from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
-### 4. Download the LLM model
+### 5. Download the LLM model
 
 ```bash
 ollama pull llama3.1
 ```
+
+### 6. First run — download Whisper and diarization models
+
+On first run, whisperX will automatically download the transcription and diarization models (~2 GB total) to `~/.cache/huggingface/hub/`.
+
+```bash
+python main.py inputs/your_audio.m4a --mode transcript
+```
+
+> **Corporate network / restricted environment:**  
+> If your network blocks HuggingFace or Ollama registries, download the models on an unrestricted machine and copy the cache folders manually:
+> - Whisper + diarization: `C:\Users\username\.cache\huggingface\hub\` → same path on target machine
+> - Ollama models: `C:\Users\username\.ollama\models\` → same path on target machine
 
 ---
 
@@ -58,14 +91,11 @@ venv\Scripts\activate
 # Single file — full pipeline, markdown output
 python main.py inputs/meeting.m4a
 
-# Single file — transcript only, plain text
-python main.py inputs/meeting.m4a --mode transcript --format txt
+# Single file — transcript only
+python main.py inputs/meeting.m4a --mode transcript
 
-# Single file — summary only exported as PDF
+# Single file — summary exported as PDF
 python main.py inputs/meeting.m4a --mode full --format pdf --export-content summary
-
-# Single file — all formats
-python main.py inputs/meeting.m4a --format all
 
 # Entire folder, sequential
 python main.py inputs/
@@ -76,7 +106,7 @@ python main.py inputs/ --parallel
 # Force reprocess already-processed files
 python main.py inputs/ --force
 
-# Full usage example
+# Full example
 python main.py inputs/meeting.m4a \
     --language en \
     --speakers 2 \
@@ -102,10 +132,10 @@ The `--mode` parameter controls which steps of the pipeline are executed:
 | `clean` | ✓ | ✓ | — |
 | `summary` | ✓ | — | ✓ |
 
-- **full** — best quality output: transcript is cleaned before summarization
-- **transcript** — fastest, just raw transcription with speaker labels
-- **clean** — cleaned transcript without summary (e.g. for manual review)
-- **summary** — quick summary without cleanup step (slightly lower quality)
+- **full** — best quality: transcript is cleaned before summarization
+- **transcript** — fastest, raw transcription with speaker labels only
+- **clean** — cleaned transcript without summary (useful for manual review)
+- **summary** — quick summary without cleanup (slightly lower quality)
 
 ---
 
@@ -160,10 +190,35 @@ minute-ai/
 ├── outputs/            # Generated files (git-ignored)
 ├── logs/               # Log files (git-ignored)
 ├── main.py             # Entry point
-├── config.py           # Local config (do not commit!)
-├── config.example.py   # Config template
-└── requirements.txt
+├── config.py           # Local config with tokens (do not commit!)
+├── config.example.py   # Config template (safe to commit)
+├── requirements.in     # Direct dependencies (human-maintained)
+└── requirements.txt    # All pinned dependencies (auto-generated)
 ```
+
+---
+
+## Dependency management
+
+This project uses a two-file approach for dependencies:
+
+- **`requirements.in`** — lists only the packages you directly depend on, without version pins. Edit this file when adding or removing dependencies.
+- **`requirements.txt`** — generated automatically by the pre-commit hook via `pip freeze`. Contains all transitive dependencies with exact versions for full reproducibility.
+
+To update dependencies after adding a new package:
+```bash
+pip install <new-package>
+git add .
+git commit -m "chore: add <new-package>"  # pre-commit hook updates requirements.txt automatically
+```
+
+---
+
+## Known warnings (safe to ignore)
+
+- **torchcodec not installed** — whisperX uses ffmpeg directly as fallback, no action needed
+- **Lightning checkpoint upgrade** — cosmetic warning from pyannote, does not affect results
+- **symlinks warning on Windows** — HuggingFace cache works in degraded mode, files are duplicated but functional. To fix, enable Windows Developer Mode.
 
 ---
 
