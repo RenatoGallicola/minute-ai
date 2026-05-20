@@ -19,6 +19,9 @@ Folder in parallel:
 Force reprocess already-processed files:
     python main.py inputs/ --force
 
+Single speaker (no diarization):
+    python main.py inputs/meeting.m4a --no-diarize
+
 Full usage:
     python main.py inputs/meeting.m4a \
         --language en \
@@ -74,13 +77,18 @@ def parse_args():
     parser.add_argument(
         "--speaker-names",
         default=None,
-        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'\n(single file only)"
+        help="Speaker names in order, comma-separated: e.g. 'Marco,Sara'\n(single file only, requires diarization)"
     )
     parser.add_argument(
         "--model", "-m",
         default=config.DEFAULT_WHISPER_MODEL,
         choices=["tiny", "base", "small", "medium", "large-v3"],
         help=f"Whisper model to use (default: {config.DEFAULT_WHISPER_MODEL})"
+    )
+    parser.add_argument(
+        "--no-diarize",
+        action="store_true",
+        help="Disable speaker diarization (use for single-speaker audio)"
     )
 
     # Meeting
@@ -169,8 +177,8 @@ def validate_args(args):
     """Validates arguments and catches invalid combinations."""
     log = get_logger()
 
-    if config.HF_TOKEN == "hf_XXXXXXXXXX":
-        log.error("Please insert your HF_TOKEN in config.py")
+    if config.HF_TOKEN == "hf_XXXXXXXXXX" and not args.no_diarize:
+        log.error("Please insert your HF_TOKEN in config.py (or use --no-diarize to skip diarization)")
         sys.exit(1)
 
     # Convert speakers to int if not 'auto'
@@ -183,7 +191,17 @@ def validate_args(args):
     else:
         args.speakers = None
 
-    # Check invalid mode + export-content combinations
+    # --speaker-names requires diarization
+    if args.speaker_names and args.no_diarize:
+        log.error("--speaker-names requires diarization. Remove --no-diarize or remove --speaker-names.")
+        sys.exit(1)
+
+    # --speakers requires diarization
+    if args.speakers and args.no_diarize:
+        log.error("--speakers requires diarization. Remove --no-diarize or remove --speakers.")
+        sys.exit(1)
+
+    # --export-content summary requires a mode that generates a summary
     modes_without_summary = ("transcript", "clean")
     if args.export_content == "summary" and args.mode in modes_without_summary:
         log.error(
@@ -205,8 +223,9 @@ def process_single(audio_path: str, args) -> list[str]:
 
     do_cleanup = args.mode in ("full", "clean")
     do_summary = args.mode in ("full", "summary")
+    do_diarize = not args.no_diarize
 
-    # Step 1: Transcription + diarization
+    # Step 1: Transcription (+ optional diarization)
     segments, detected_language = transcribe(
         audio_path=audio_path,
         language=args.language if args.language != "auto" else None,
@@ -214,11 +233,12 @@ def process_single(audio_path: str, args) -> list[str]:
         model_name=args.model,
         compute_type=config.DEFAULT_COMPUTE_TYPE,
         hf_token=config.HF_TOKEN,
+        diarize=do_diarize,
     )
 
     speaker_names = args.speaker_names if len(args.audio) == 1 else None
-    speaker_map = build_speaker_map(segments, speaker_names)
-    transcript = format_transcript(segments, speaker_map)
+    speaker_map = build_speaker_map(segments, speaker_names) if do_diarize else {}
+    transcript = format_transcript(segments, speaker_map, diarize=do_diarize)
 
     # Step 2: Cleanup
     if do_cleanup:
@@ -287,7 +307,7 @@ def main():
 
         log.info("=" * 55)
         log.info(f"minute-ai — {meeting_name}")
-        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content}")
+        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content} | Diarize: {not args.no_diarize}")
         log.info("=" * 55)
 
         output_files = process_single(audio_path, args)
@@ -303,7 +323,7 @@ def main():
         log.info("=" * 55)
         log.info("minute-ai — BATCH MODE")
         log.info(f"Found {len(audio_files)} file(s)")
-        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content}")
+        log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content} | Diarize: {not args.no_diarize}")
         log.info(f"Parallel: {'yes' if args.parallel else 'no'}")
         log.info("=" * 55)
 

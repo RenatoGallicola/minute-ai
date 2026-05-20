@@ -16,6 +16,7 @@ Everything runs on your PC — no data is sent to external servers.
 - Python **3.10–3.12** (Python 3.13+ is not supported by whisperX)
 - [Ollama](https://ollama.com) installed and running
 - [HuggingFace](https://huggingface.co) account and token (free, required for diarization)
+  - Not required if using `--no-diarize`
 
 ---
 
@@ -59,7 +60,8 @@ copy config.example.py config.py   # Windows
 # cp config.example.py config.py   # Mac/Linux
 ```
 
-Open `config.py` and insert your `HF_TOKEN` from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+Open `config.py` and insert your `HF_TOKEN` from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).  
+Not needed if you always use `--no-diarize`.
 
 ### 5. Download the LLM model
 
@@ -91,11 +93,17 @@ venv\Scripts\activate
 # Single file — full pipeline, markdown output
 python main.py inputs/meeting.m4a
 
-# Single file — transcript only
-python main.py inputs/meeting.m4a --mode transcript
+# Single file — transcript only, no diarization (single speaker)
+python main.py inputs/meeting.m4a --no-diarize --mode transcript
 
-# Single file — summary exported as PDF
+# Single file — full pipeline, no diarization
+python main.py inputs/meeting.m4a --no-diarize
+
+# Single file — summary only exported as PDF
 python main.py inputs/meeting.m4a --mode full --format pdf --export-content summary
+
+# Single file — all formats
+python main.py inputs/meeting.m4a --format all
 
 # Entire folder, sequential
 python main.py inputs/
@@ -139,6 +147,20 @@ The `--mode` parameter controls which steps of the pipeline are executed:
 
 ---
 
+## Speaker diarization
+
+By default, minute-ai identifies who said what using speaker diarization.  
+Use `--no-diarize` to skip this step entirely:
+
+- Faster processing
+- No HuggingFace token required
+- Output is plain text without speaker labels
+- Ideal for single-speaker recordings (interviews, voice memos, lectures)
+
+> **Note:** `--no-diarize` is incompatible with `--speakers` and `--speaker-names`.
+
+---
+
 ## Export content
 
 The `--export-content` parameter controls what is included in the output file:
@@ -158,10 +180,11 @@ The `--export-content` parameter controls what is included in the output file:
 | Parameter | Default | Description |
 |---|---|---|
 | `--language` | `auto` | Audio language: `it`, `en`, `auto`, etc. |
-| `--speakers` | `auto` | Number of speakers or `auto` |
-| `--speaker-names` | — | Speaker names: `"Marco,Sara"` (single file only) |
+| `--speakers` | `auto` | Number of speakers or `auto` (requires diarization) |
+| `--speaker-names` | — | Speaker names: `"Marco,Sara"` (single file only, requires diarization) |
 | `--meeting-name` | filename | Meeting name (single file only) |
 | `--model` | `medium` | Whisper model: `tiny` `small` `medium` `large-v3` |
+| `--no-diarize` | — | Disable speaker diarization (single-speaker audio) |
 | `--mode` | `full` | Pipeline mode: `full` `transcript` `clean` `summary` |
 | `--cleanup-model` | `llama3.1` | Ollama model for cleanup |
 | `--summary-model` | `llama3.1` | Ollama model for summary |

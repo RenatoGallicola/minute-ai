@@ -1,7 +1,7 @@
 """
 transcribe.py
 -------------
-Audio transcription and speaker diarization using whisperX.
+Audio transcription and optional speaker diarization using whisperX.
 """
 
 import sys
@@ -15,9 +15,10 @@ def transcribe(
     model_name: str,
     compute_type: str,
     hf_token: str,
+    diarize: bool = True,
 ) -> tuple[list[dict], str]:
     """
-    Transcribes an audio file and identifies speakers.
+    Transcribes an audio file and optionally identifies speakers.
 
     Args:
         audio_path:   Path to the audio file
@@ -26,6 +27,7 @@ def transcribe(
         model_name:   Whisper model to use
         compute_type: Computation type ('int8' for CPU, 'float16' for GPU)
         hf_token:     HuggingFace token for the diarization model
+        diarize:      Whether to run speaker diarization (default: True)
 
     Returns:
         (segments, detected_language)
@@ -42,7 +44,7 @@ def transcribe(
     lang = language if language and language != "auto" else None
 
     log.info(f"[1/4] Transcribing audio: {audio_path}")
-    log.info(f"      Model: {model_name} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'}")
+    log.info(f"      Model: {model_name} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'} | Diarize: {diarize}")
 
     # Load model and transcribe
     model = whisperx.load_model(model_name, device, compute_type=compute_type, language=lang)
@@ -59,36 +61,44 @@ def transcribe(
         return_char_alignments=False
     )
 
-    # Diarization
-    log.info("      Diarizing speakers...")
-    diarize_kwargs = {}
-    if num_speakers:
-        diarize_kwargs["min_speakers"] = num_speakers
-        diarize_kwargs["max_speakers"] = num_speakers
+    # Diarization (optional)
+    if diarize:
+        log.info("      Diarizing speakers...")
+        diarize_kwargs = {}
+        if num_speakers:
+            diarize_kwargs["min_speakers"] = num_speakers
+            diarize_kwargs["max_speakers"] = num_speakers
 
-    diarize_model = whisperx.diarize.DiarizationPipeline(
-        token=hf_token,
-        device=device
-    )
-    diarize_segments = diarize_model(audio, **diarize_kwargs)
-    result = whisperx.diarize.assign_word_speakers(diarize_segments, result)
+        diarize_model = whisperx.diarize.DiarizationPipeline(
+            token=hf_token,
+            device=device
+        )
+        diarize_segments = diarize_model(audio, **diarize_kwargs)
+        result = whisperx.diarize.assign_word_speakers(diarize_segments, result)
+    else:
+        log.info("      Diarization: skipped.")
 
     segments = result["segments"]
     log.info(f"      Done — {len(segments)} segments")
     return segments, detected_language
 
 
-def format_transcript(segments: list[dict], speaker_names: dict = None) -> str:
+def format_transcript(segments: list[dict], speaker_names: dict = None, diarize: bool = True) -> str:
     """
-    Formats segments into a readable transcript with speaker labels.
+    Formats segments into a readable transcript.
 
     Args:
         segments:      whisperX segment list
         speaker_names: Optional dict {SPEAKER_00: "Marco", SPEAKER_01: "Sara"}
+        diarize:       Whether speaker labels are present in segments
 
     Returns:
-        Formatted string with speakers and text
+        Formatted transcript string
     """
+    if not diarize:
+        # No speaker labels — just concatenate text
+        return " ".join(seg.get("text", "").strip() for seg in segments if seg.get("text", "").strip())
+
     lines = []
     current_speaker = None
     current_text = []
