@@ -40,11 +40,12 @@ def transcribe(
         log.error("whisperx is not installed. Run: pip install whisperx")
         sys.exit(1)
 
-    device = "cpu"
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     lang = language if language and language != "auto" else None
 
     log.info(f"[1/4] Transcribing audio: {audio_path}")
-    log.info(f"      Model: {model_name} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'} | Diarize: {diarize}")
+    log.info(f"      Model: {model_name} | Device: {device} | Language: {lang or 'auto-detect'} | Speakers: {num_speakers or 'auto'} | Diarize: {diarize}")
 
     # Load model and transcribe
     model = whisperx.load_model(model_name, device, compute_type=compute_type, language=lang)
