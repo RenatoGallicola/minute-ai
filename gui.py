@@ -2,80 +2,106 @@
 """
 gui.py
 ------
-Gradio web interface for minute-ai. Wraps the same pipeline used by main.py
-(src/transcribe.py, cleanup.py, summarize.py, export.py) — no logic is duplicated.
+Local web GUI for minute-ai: FastAPI + Jinja2 + htmx, styled with precompiled Tailwind CSS.
+Wraps the same pipeline used by main.py (main.process_single / main.resolve_model) —
+no pipeline logic is duplicated here.
 
 Run with:
     python gui.py
 """
 
+import argparse
 import logging
-import queue
+import shutil
+import tempfile
 import threading
-import time
+import uuid
 from pathlib import Path
+from typing import Optional
 
-import gradio as gr
+import uvicorn
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 import config
 import main as pipeline
-from src.logger import setup_logger, get_logger
+from src.logger import get_logger, setup_logger
 
 
-LANGUAGE_CHOICES = [
-    ("Rilevamento automatico", "auto"),
-    ("Italiano", "it"),
-    ("Inglese", "en"),
-    ("Francese", "fr"),
-    ("Tedesco", "de"),
-    ("Spagnolo", "es"),
-    ("Portoghese", "pt"),
+BASE_DIR = Path(__file__).parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+app = FastAPI(title="minute-ai")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+LANGUAGES = [
+    ("auto", "Rilevamento automatico"), ("it", "Italiano"), ("en", "Inglese"),
+    ("fr", "Francese"), ("de", "Tedesco"), ("es", "Spagnolo"), ("pt", "Portoghese"),
 ]
-
-MODEL_CHOICES = [
-    ("Automatico (in base alla RAM disponibile)", "auto"),
-    ("Tiny — più veloce", "tiny"),
-    ("Base", "base"),
-    ("Small", "small"),
-    ("Medium", "medium"),
-    ("Large-v3 — più accurato", "large-v3"),
+MODELS = [
+    ("auto", "Automatico (in base alla RAM disponibile)"), ("tiny", "Tiny — più veloce"),
+    ("base", "Base"), ("small", "Small"), ("medium", "Medium"), ("large-v3", "Large-v3 — più accurato"),
 ]
-
-SPEAKERS_CHOICES = [("Automatico", "auto")] + [(str(n), str(n)) for n in range(1, 7)]
-
-MODE_CHOICES = [
-    ("Completa — trascrizione + pulizia + riassunto", "full"),
-    ("Solo trascrizione", "transcript"),
-    ("Trascrizione pulita, senza riassunto", "clean"),
-    ("Solo riassunto", "summary"),
+SPEAKER_COUNTS = [("auto", "Automatico")] + [(str(n), str(n)) for n in range(1, 7)]
+MODES = [
+    ("full", "Completa — trascrizione + pulizia + riassunto"), ("transcript", "Solo trascrizione"),
+    ("clean", "Trascrizione pulita, senza riassunto"), ("summary", "Solo riassunto"),
 ]
-
-FORMAT_CHOICES = [
-    ("Markdown (.md)", "md"),
-    ("Testo semplice (.txt)", "txt"),
-    ("Word (.docx)", "docx"),
-    ("PDF", "pdf"),
-    ("Tutti i formati", "all"),
+FORMATS = [
+    ("md", "Markdown (.md)"), ("txt", "Testo semplice (.txt)"),
+    ("docx", "Word (.docx)"), ("pdf", "PDF"), ("all", "Tutti i formati"),
 ]
+EXPORT_CONTENTS = [("full", "Riassunto + trascrizione completa"), ("summary", "Solo riassunto")]
+SUMMARY_LANGUAGES = [("same", "Stessa lingua della trascrizione")] + LANGUAGES[1:]
 
-EXPORT_CONTENT_CHOICES = [
-    ("Riassunto + trascrizione completa", "full"),
-    ("Solo riassunto", "summary"),
-]
+INDEX_CONTEXT = {
+    "languages": LANGUAGES,
+    "models": MODELS,
+    "default_model": config.DEFAULT_WHISPER_MODEL,
+    "modes": MODES,
+    "speaker_counts": SPEAKER_COUNTS,
+    "formats": FORMATS,
+    "default_format": config.DEFAULT_FORMAT,
+    "export_contents": EXPORT_CONTENTS,
+    "default_export_content": config.DEFAULT_EXPORT_CONTENT,
+    "summary_languages": SUMMARY_LANGUAGES,
+    "default_cleanup_model": config.DEFAULT_CLEANUP_MODEL,
+    "default_summary_model": config.DEFAULT_SUMMARY_MODEL,
+    "default_output_dir": config.DEFAULT_OUTPUT_DIR,
+}
 
-SUMMARY_LANGUAGE_CHOICES = [("Stessa lingua della trascrizione", "same")] + LANGUAGE_CHOICES[1:]
+
+class Job:
+    def __init__(self, job_id: str):
+        self.id = job_id
+        self.done = False
+        self.log_lines: list[str] = []
+        self.output_files: list[str] = []  # basenames, for display + download lookup
+        self.output_paths: dict[str, Path] = {}
+        self.errors: list[tuple[str, str]] = []
+
+    @property
+    def log_text(self) -> str:
+        return "\n".join(self.log_lines)
 
 
-class _QueueLogHandler(logging.Handler):
-    """Forwards log records to a queue so the UI can display them as they happen."""
+class _JobLogHandler(logging.Handler):
+    """Forwards log records into a Job's log so the UI can poll and display them."""
 
-    def __init__(self, log_queue: queue.Queue):
+    def __init__(self, job: Job):
         super().__init__()
-        self.log_queue = log_queue
+        self.job = job
 
     def emit(self, record: logging.LogRecord):
         prefix = {"WARNING": "⚠ ", "ERROR": "✖ "}.get(record.levelname, "")
-        self.log_queue.put(f"{prefix}{record.getMessage()}")
+        self.job.log_lines.append(f"{prefix}{record.getMessage()}")
+
+
+_lock = threading.Lock()
+_current_job: Optional[Job] = None
 
 
 def _build_args(
@@ -84,7 +110,6 @@ def _build_args(
     is_batch: bool,
 ):
     """Builds the plain object main.process_single()/resolve_model() expect."""
-    import argparse
     return argparse.Namespace(
         language=language,
         model=model,
@@ -104,195 +129,127 @@ def _build_args(
     )
 
 
-def run_pipeline(
-    audio_files, language, model, mode, diarize, speakers, speaker_names, meeting_name,
-    fmt, export_content, cleanup_model, summary_model, summary_language, output_dir,
-):
-    if not audio_files:
-        raise gr.Error("Carica almeno un file audio.")
+def _status_response(request: Request, job: Optional[Job], error: Optional[str] = None) -> HTMLResponse:
+    return templates.TemplateResponse(request, "_status.html", {"job": job, "error": error})
 
-    if diarize and config.HF_TOKEN == "hf_XXXXXXXXXX":
-        raise gr.Error(
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request):
+    return templates.TemplateResponse(request, "index.html", {**INDEX_CONTEXT, "job": None, "error": None})
+
+
+@app.post("/run", response_class=HTMLResponse)
+def run(
+    request: Request,
+    audio_files: list[UploadFile] = File(...),
+    language: str = Form("auto"),
+    model: str = Form("auto"),
+    mode: str = Form("full"),
+    diarize: Optional[str] = Form(None),
+    speakers: str = Form("auto"),
+    speaker_names: str = Form(""),
+    meeting_name: str = Form(""),
+    format: str = Form("md"),
+    export_content: str = Form("full"),
+    cleanup_model: str = Form("llama3.1"),
+    summary_model: str = Form("llama3.1"),
+    summary_language: str = Form("same"),
+    output_dir: str = Form("outputs"),
+):
+    global _current_job
+
+    with _lock:
+        if _current_job is not None and not _current_job.done:
+            return _status_response(request, None, "Un'elaborazione è già in corso. Attendi il completamento.")
+        job = Job(str(uuid.uuid4()))
+        _current_job = job
+
+    if bool(diarize) and config.HF_TOKEN == "hf_XXXXXXXXXX":
+        with _lock:
+            _current_job = None
+        return _status_response(
+            request, None,
             "Manca l'HF_TOKEN in config.py, necessario per la diarizzazione. "
-            "Aggiungilo oppure disattiva 'Identifica i parlanti'."
+            "Aggiungilo oppure disattiva 'Identifica i parlanti'.",
         )
 
     if export_content == "summary" and mode in ("transcript", "clean"):
-        raise gr.Error(
+        with _lock:
+            _current_job = None
+        return _status_response(
+            request, None,
             "'Solo riassunto' richiede una modalità che generi un riassunto "
-            "('Completa' o 'Solo riassunto')."
+            "('Completa' o 'Solo riassunto').",
         )
 
-    audio_paths = [f if isinstance(f, str) else f.name for f in audio_files]
+    tmp_dir = Path(tempfile.mkdtemp(prefix="minute-ai-"))
+    audio_paths = []
+    for uf in audio_files:
+        if not uf.filename:
+            continue
+        dest = tmp_dir / Path(uf.filename).name
+        with open(dest, "wb") as out:
+            shutil.copyfileobj(uf.file, out)
+        audio_paths.append(str(dest))
+
+    if not audio_paths:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        with _lock:
+            _current_job = None
+        return _status_response(request, None, "Carica almeno un file audio.")
+
     is_batch = len(audio_paths) > 1
     args = _build_args(
-        language, model, mode, diarize, speakers, speaker_names, meeting_name,
-        fmt, export_content, cleanup_model, summary_model, summary_language, output_dir,
+        language, model, mode, bool(diarize), speakers, speaker_names, meeting_name,
+        format, export_content, cleanup_model, summary_model, summary_language, output_dir,
         is_batch,
     )
     args.model = pipeline.resolve_model(args)
 
-    log_queue = queue.Queue()
-    handler = _QueueLogHandler(log_queue)
+    handler = _JobLogHandler(job)
     logger = get_logger()
     logger.addHandler(handler)
 
-    result = {}
-
     def worker():
-        output_files = []
-        errors = []
-        for audio_path in audio_paths:
-            try:
-                output_files.extend(pipeline.process_single(audio_path, args, is_batch))
-            except BaseException as exc:  # noqa: BLE001 - surface Ollama/whisperX failures, don't crash the app
-                errors.append((Path(audio_path).name, exc))
-        result["files"] = output_files
-        result["errors"] = errors
+        try:
+            for audio_path in audio_paths:
+                try:
+                    for out_path in pipeline.process_single(audio_path, args, is_batch):
+                        p = Path(out_path)
+                        job.output_files.append(p.name)
+                        job.output_paths[p.name] = p
+                except BaseException as exc:  # noqa: BLE001 - surface Ollama/whisperX failures, don't crash the app
+                    message = str(exc) or exc.__class__.__name__
+                    job.errors.append((Path(audio_path).name, message))
+        finally:
+            logger.removeHandler(handler)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            job.done = True
 
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-
-    lines = [f"▶ Avvio elaborazione di {len(audio_paths)} file..."]
-    yield "\n".join(lines), None, gr.update(interactive=False)
-
-    while thread.is_alive():
-        drained = False
-        while not log_queue.empty():
-            lines.append(log_queue.get_nowait())
-            drained = True
-        if drained:
-            yield "\n".join(lines), None, gr.update(interactive=False)
-        time.sleep(0.3)
-
-    while not log_queue.empty():
-        lines.append(log_queue.get_nowait())
-    logger.removeHandler(handler)
-
-    output_files = result.get("files", [])
-    errors = result.get("errors", [])
-
-    if errors:
-        lines.append(f"\n✖ {len(errors)} file non completati:")
-        for name, exc in errors:
-            lines.append(f"   - {name}: {exc}")
-    if output_files:
-        lines.append(f"\n✔ Fatto — {len(output_files)} file generati.")
-    elif not errors:
-        lines.append("\n✖ Nessun file generato.")
-
-    yield "\n".join(lines), (output_files or None), gr.update(interactive=True)
+    threading.Thread(target=worker, daemon=True).start()
+    return _status_response(request, job, None)
 
 
-def _toggle_speaker_fields(diarize: bool):
-    return gr.update(visible=diarize), gr.update(visible=diarize)
+@app.get("/jobs/{job_id}/status", response_class=HTMLResponse)
+def job_status(request: Request, job_id: str):
+    with _lock:
+        job = _current_job if _current_job and _current_job.id == job_id else None
+    error = None if job else "Elaborazione non trovata (forse è stata avviata una nuova elaborazione)."
+    return _status_response(request, job, error)
 
 
-CSS = """
-.gradio-container {max-width: 1040px !important; margin: 0 auto !important;}
-#header {text-align: center; padding: 6px 0 2px 0;}
-#header h1 {margin-bottom: 2px; font-size: 1.9em;}
-#header p {color: var(--body-text-color-subdued); margin-top: 0;}
-.log-box textarea {
-    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace !important;
-    font-size: 12.5px !important;
-    background: #0f172a !important;
-    color: #d6dee8 !important;
-    border-radius: 10px !important;
-}
-#footer {text-align: center; opacity: 0.55; font-size: 12px; margin-top: 10px;}
-"""
-
-THEME = gr.themes.Soft(
-    primary_hue=gr.themes.colors.indigo,
-    secondary_hue=gr.themes.colors.slate,
-    neutral_hue=gr.themes.colors.slate,
-    font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "system-ui", "sans-serif"],
-)
-
-
-def build_demo() -> gr.Blocks:
-    with gr.Blocks(title="minute-ai") as demo:
-        gr.HTML(
-            """
-            <div id="header">
-                <h1>🎙️ minute-ai</h1>
-                <p>Trascrizione e riassunto riunioni — 100% locale, nessun dato lascia il tuo PC</p>
-            </div>
-            """
-        )
-
-        with gr.Row():
-            with gr.Column(scale=1):
-                with gr.Group():
-                    audio_files = gr.File(
-                        label="Audio (uno o più file)",
-                        file_count="multiple",
-                        file_types=["audio"],
-                    )
-
-                with gr.Group():
-                    language = gr.Dropdown(LANGUAGE_CHOICES, value="auto", label="Lingua audio", allow_custom_value=True)
-                    model = gr.Dropdown(MODEL_CHOICES, value=config.DEFAULT_WHISPER_MODEL, label="Modello Whisper")
-                    mode = gr.Radio(MODE_CHOICES, value=config.DEFAULT_MODE, label="Modalità pipeline")
-
-                with gr.Group():
-                    diarize = gr.Checkbox(value=True, label="Identifica i parlanti (diarizzazione)")
-                    speakers = gr.Dropdown(SPEAKERS_CHOICES, value="auto", label="Numero di parlanti", visible=True)
-                    speaker_names = gr.Textbox(
-                        label="Nomi dei parlanti (in ordine, solo file singolo)",
-                        placeholder="Marco,Sara",
-                        visible=True,
-                    )
-                    meeting_name = gr.Textbox(
-                        label="Nome riunione (solo file singolo)",
-                        placeholder="Es. Q3 Kickoff — se vuoto, usa il nome del file",
-                    )
-
-                with gr.Group():
-                    fmt = gr.Dropdown(FORMAT_CHOICES, value=config.DEFAULT_FORMAT, label="Formato di esportazione")
-                    export_content = gr.Radio(
-                        EXPORT_CONTENT_CHOICES, value=config.DEFAULT_EXPORT_CONTENT, label="Contenuto esportato"
-                    )
-
-                with gr.Accordion("Impostazioni avanzate", open=False):
-                    cleanup_model = gr.Textbox(value=config.DEFAULT_CLEANUP_MODEL, label="Modello Ollama per la pulizia")
-                    summary_model = gr.Textbox(value=config.DEFAULT_SUMMARY_MODEL, label="Modello Ollama per il riassunto")
-                    summary_language = gr.Dropdown(
-                        SUMMARY_LANGUAGE_CHOICES, value=config.DEFAULT_SUMMARY_LANGUAGE, label="Lingua del riassunto"
-                    )
-                    output_dir = gr.Textbox(value=config.DEFAULT_OUTPUT_DIR, label="Cartella di output")
-
-                run_btn = gr.Button("▶ Genera", variant="primary", size="lg")
-
-            with gr.Column(scale=1):
-                with gr.Group():
-                    gr.Markdown("**Log**")
-                    log_box = gr.Textbox(
-                        label=None, show_label=False, lines=20, interactive=False,
-                        elem_classes=["log-box"], placeholder="I log dell'elaborazione appariranno qui...",
-                    )
-                with gr.Group():
-                    gr.Markdown("**File generati**")
-                    files_box = gr.File(label=None, show_label=False, file_count="multiple", interactive=False)
-
-        gr.HTML('<div id="footer">minute-ai · whisperX + Ollama, in esecuzione interamente sul tuo PC</div>')
-
-        diarize.change(_toggle_speaker_fields, inputs=diarize, outputs=[speakers, speaker_names])
-
-        run_btn.click(
-            run_pipeline,
-            inputs=[
-                audio_files, language, model, mode, diarize, speakers, speaker_names, meeting_name,
-                fmt, export_content, cleanup_model, summary_model, summary_language, output_dir,
-            ],
-            outputs=[log_box, files_box, run_btn],
-        )
-
-    return demo
+@app.get("/download/{job_id}/{filename}")
+def download(job_id: str, filename: str):
+    with _lock:
+        job = _current_job if _current_job and _current_job.id == job_id else None
+    if not job or filename not in job.output_paths:
+        raise HTTPException(status_code=404, detail="File non trovato.")
+    path = job.output_paths[filename]
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File non trovato.")
+    return FileResponse(path, filename=filename)
 
 
 if __name__ == "__main__":
     setup_logger()
-    demo = build_demo()
-    demo.queue().launch(theme=THEME, css=CSS)
+    uvicorn.run(app, host="127.0.0.1", port=7860)

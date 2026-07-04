@@ -1,0 +1,21 @@
+@import "tailwindcss";
+@source "../templates";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
+}
+
+#run-form.htmx-request {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+#log-box::-webkit-scrollbar {
+  width: 10px;
+}
+#log-box::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
