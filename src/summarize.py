@@ -4,7 +4,7 @@ summarize.py
 Generates a structured meeting summary using a local LLM via Ollama.
 """
 
-from src.cleanup import call_ollama, check_ollama
+from src.ollama_client import call_ollama, check_ollama
 from src.logger import get_logger
 
 
