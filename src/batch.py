@@ -84,6 +84,10 @@ def already_processed(audio_path: str, output_dir: str, fmt: str) -> bool:
         extensions.append(".md")
     if fmt in ("txt", "all"):
         extensions.append(".txt")
+    if fmt in ("docx", "all"):
+        extensions.append(".docx")
+    if fmt in ("pdf", "all"):
+        extensions.append(".pdf")
 
     for f in Path(output_dir).glob("*"):
         file_stem = f.stem.lower()

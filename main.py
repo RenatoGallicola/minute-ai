@@ -37,7 +37,6 @@ Full usage:
 
 import argparse
 import sys
-import os
 from pathlib import Path
 
 import config
@@ -101,7 +100,7 @@ def parse_args():
     # Pipeline mode
     parser.add_argument(
         "--mode",
-        default="full",
+        default=config.DEFAULT_MODE,
         choices=["full", "transcript", "clean", "summary"],
         help=(
             "Pipeline mode (default: full)\n"
@@ -143,7 +142,7 @@ def parse_args():
     )
     parser.add_argument(
         "--export-content",
-        default="full",
+        default=config.DEFAULT_EXPORT_CONTENT,
         choices=["full", "summary"],
         help=(
             "What to include in the exported file (default: full)\n"
@@ -214,12 +213,17 @@ def validate_args(args):
     return args
 
 
-def process_single(audio_path: str, args) -> list[str]:
+def resolve_meeting_name(audio_path: str, args) -> str:
+    """Determines the meeting name: explicit --meeting-name, or derived from the filename."""
+    return args.meeting_name or \
+        Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+
+
+def process_single(audio_path: str, args, is_batch: bool) -> list[str]:
     """Runs the full pipeline on a single audio file."""
     log = get_logger()
 
-    meeting_name = args.meeting_name or \
-        Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+    meeting_name = resolve_meeting_name(audio_path, args)
 
     do_cleanup = args.mode in ("full", "clean")
     do_summary = args.mode in ("full", "summary")
@@ -236,7 +240,7 @@ def process_single(audio_path: str, args) -> list[str]:
         diarize=do_diarize,
     )
 
-    speaker_names = args.speaker_names if len(args.audio) == 1 else None
+    speaker_names = args.speaker_names if not is_batch else None
     speaker_map = build_speaker_map(segments, speaker_names) if do_diarize else {}
     transcript = format_transcript(segments, speaker_map, diarize=do_diarize)
 
@@ -302,15 +306,14 @@ def main():
     # Single file mode
     if not is_batch:
         audio_path = audio_files[0]
-        meeting_name = args.meeting_name or \
-            Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
+        meeting_name = resolve_meeting_name(audio_path, args)
 
         log.info("=" * 55)
         log.info(f"minute-ai — {meeting_name}")
         log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content} | Diarize: {not args.no_diarize}")
         log.info("=" * 55)
 
-        output_files = process_single(audio_path, args)
+        output_files = process_single(audio_path, args, is_batch=False)
 
         log.info("=" * 55)
         log.info("DONE")
@@ -334,7 +337,7 @@ def main():
 
         results = run_batch(
             audio_files=audio_files,
-            process_fn=lambda audio: process_single(audio, args),
+            process_fn=lambda audio: process_single(audio, args, is_batch=True),
             parallel=args.parallel,
             force=args.force,
             output_dir=args.output_dir,
