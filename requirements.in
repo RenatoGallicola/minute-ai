@@ -13,6 +13,9 @@ whisperx
 python-docx
 reportlab
 
+# Dev / testing
+pytest
+
 # PyTorch — install manually with the command below for your platform:
 # pip install torch torchvision torchaudio
 # See https://pytorch.org/get-started/locally/ for GPU/CUDA variants
