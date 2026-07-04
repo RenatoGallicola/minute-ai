@@ -14,8 +14,11 @@ whisperx
 python-docx
 reportlab
 
-# GUI
-gradio
+# GUI (FastAPI + Jinja2 + htmx; Tailwind CSS is precompiled, see static/README)
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2
 
 # Dev / testing
 pytest

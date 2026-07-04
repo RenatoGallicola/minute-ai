@@ -36,3 +36,8 @@ Thumbs.db
 # pip-tools compiled file (optional: some teams commit this, some don't)
 # Uncomment the line below if you prefer not to commit the pinned requirements
 # requirements.txt
+
+# Node tooling used only to (re)compile static/tailwind.css — never a runtime dependency
+node_modules/
+package.json
+package-lock.json

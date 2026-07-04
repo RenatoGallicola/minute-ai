@@ -8,6 +8,7 @@ Everything runs on your PC — no data is sent to external servers.
 - **[whisperX](https://github.com/m-bain/whisperX)** — transcription + speaker diarization
 - **[Ollama](https://ollama.com)** — local LLM for cleanup and summarization
 - Output as **Markdown**, **txt**, **docx**, or **PDF** ready for Notion
+- CLI or a local **FastAPI + htmx** web GUI, your choice
 
 ---
 
@@ -131,7 +132,8 @@ python main.py inputs/meeting.m4a \
 
 ## GUI
 
-Prefer a graphical interface over the CLI? minute-ai also ships a [Gradio](https://gradio.app) web app
+Prefer a graphical interface over the CLI? minute-ai also ships a small local web app
+(FastAPI + Jinja2 + [htmx](https://htmx.org), styled with precompiled [Tailwind CSS](https://tailwindcss.com))
 that wraps the same pipeline:
 
 ```bash
@@ -139,9 +141,19 @@ venv\Scripts\activate
 python gui.py
 ```
 
-Opens automatically at `http://127.0.0.1:7860` — everything still runs locally, the browser is just
-the interface. Upload one or more audio files, pick your options, and download the generated files
-when done. Live pipeline logs are streamed to the page as processing happens.
+Open `http://127.0.0.1:7860` in your browser — everything still runs locally, the browser is just
+the interface (no telemetry, no CDN calls: htmx and the compiled Tailwind CSS are vendored in `static/`).
+Upload one or more audio files, pick your options, and download the generated files when done.
+Pipeline logs stream to the page in near-real time (polled via htmx every second) while processing runs
+in a background thread. Only one job runs at a time.
+
+**If you edit `templates/*.html`** and use Tailwind classes that aren't in the compiled stylesheet yet,
+regenerate it (requires Node.js, only for this one-off build step — not a runtime dependency):
+```bash
+npm install --no-save tailwindcss @tailwindcss/cli
+./node_modules/.bin/tailwindcss -i static/src.css -o static/tailwind.css --minify
+rm -rf node_modules package.json package-lock.json
+```
 
 ---
 
@@ -247,12 +259,14 @@ minute-ai/
 │   ├── batch.py          # Batch processing logic
 │   ├── hardware.py       # RAM-based auto-selection of the whisper model
 │   └── logger.py         # Centralized logging
+├── templates/            # Jinja2 templates for the web GUI
+├── static/               # Vendored htmx + precompiled Tailwind CSS for the GUI
 ├── tests/               # pytest unit tests
 ├── inputs/              # Audio files (git-ignored)
 ├── outputs/             # Generated files (git-ignored)
 ├── logs/                # Log files (git-ignored)
 ├── main.py              # CLI entry point
-├── gui.py               # Gradio web GUI (wraps the same pipeline)
+├── gui.py               # FastAPI web GUI (wraps the same pipeline)
 ├── config.py            # Local config with tokens (do not commit!)
 ├── config.example.py    # Config template (safe to commit)
 ├── requirements.in      # Direct dependencies (human-maintained)
