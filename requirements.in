@@ -5,6 +5,7 @@
 
 # Core
 requests
+psutil
 
 # Transcription
 whisperx

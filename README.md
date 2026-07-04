@@ -147,6 +147,26 @@ The `--mode` parameter controls which steps of the pipeline are executed:
 
 ---
 
+## Automatic model selection
+
+By default, `--model auto` picks a whisper model based on available system RAM (via `psutil`),
+so you don't have to know which model your machine can handle:
+
+| Available RAM | Model |
+|---|---|
+| ≥ 16 GB | `large-v3` |
+| ≥ 8 GB | `medium` |
+| ≥ 4 GB | `small` |
+| ≥ 2 GB | `base` |
+| < 2 GB | `tiny` |
+
+With `--parallel`, available RAM is divided across `--parallel-workers` before picking a model,
+since each worker loads its own model instance.
+
+To pin a specific model instead, pass `--model` explicitly (e.g. `--model medium`).
+
+---
+
 ## Speaker diarization
 
 By default, minute-ai identifies who said what using speaker diarization.  
@@ -183,7 +203,7 @@ The `--export-content` parameter controls what is included in the output file:
 | `--speakers` | `auto` | Number of speakers or `auto` (requires diarization) |
 | `--speaker-names` | — | Speaker names: `"Marco,Sara"` (single file only, requires diarization) |
 | `--meeting-name` | filename | Meeting name (single file only) |
-| `--model` | `medium` | Whisper model: `tiny` `small` `medium` `large-v3` |
+| `--model` | `auto` | Whisper model: `auto` `tiny` `base` `small` `medium` `large-v3` |
 | `--no-diarize` | — | Disable speaker diarization (single-speaker audio) |
 | `--mode` | `full` | Pipeline mode: `full` `transcript` `clean` `summary` |
 | `--cleanup-model` | `llama3.1` | Ollama model for cleanup |
@@ -276,4 +296,4 @@ There is no automation (hook or CI) that regenerates `requirements.txt` — runn
 
 - [ ] Graphical user interface (GUI)
 - [ ] Direct Notion API integration
-- [ ] Automatic model selection based on available RAM
+- [x] Automatic model selection based on available RAM
