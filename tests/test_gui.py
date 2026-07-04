@@ -1,17 +1,46 @@
-import gradio as gr
+import threading
+import time
+
 import pytest
+from fastapi.testclient import TestClient
 
 import gui
+
+
+@pytest.fixture(autouse=True)
+def reset_current_job():
+    gui._current_job = None
+    yield
+    gui._current_job = None
+
+
+@pytest.fixture
+def client():
+    return TestClient(gui.app)
+
+
+def _wait_until_done(timeout=2.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if gui._current_job and gui._current_job.done:
+            return
+        time.sleep(0.02)
+    raise AssertionError("job did not finish in time")
+
+
+class TestIndex:
+    def test_loads(self, client):
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "minute-ai" in r.text
+        assert "Genera" in r.text
 
 
 class TestBuildArgs:
     def test_single_file_keeps_speaker_names_and_meeting_name(self):
         args = gui._build_args(
-            language="en", model="medium", mode="full", diarize=True,
-            speakers="2", speaker_names="Marco,Sara", meeting_name="Q3 Kickoff",
-            fmt="md", export_content="full", cleanup_model="llama3.1",
-            summary_model="llama3.1", summary_language="same", output_dir="outputs",
-            is_batch=False,
+            "en", "medium", "full", True, "2", "Marco,Sara", "Q3 Kickoff",
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
         )
         assert args.speaker_names == "Marco,Sara"
         assert args.meeting_name == "Q3 Kickoff"
@@ -20,67 +49,135 @@ class TestBuildArgs:
 
     def test_batch_drops_speaker_names_and_meeting_name(self):
         args = gui._build_args(
-            language="en", model="medium", mode="full", diarize=True,
-            speakers="auto", speaker_names="Marco,Sara", meeting_name="Q3 Kickoff",
-            fmt="md", export_content="full", cleanup_model="llama3.1",
-            summary_model="llama3.1", summary_language="same", output_dir="outputs",
-            is_batch=True,
+            "en", "medium", "full", True, "auto", "Marco,Sara", "Q3 Kickoff",
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=True,
         )
         assert args.speaker_names is None
         assert args.meeting_name is None
 
     def test_auto_speakers_becomes_none(self):
         args = gui._build_args(
-            language="auto", model="auto", mode="full", diarize=True,
-            speakers="auto", speaker_names="", meeting_name="",
-            fmt="md", export_content="full", cleanup_model="llama3.1",
-            summary_model="llama3.1", summary_language="same", output_dir="outputs",
-            is_batch=False,
+            "auto", "auto", "full", True, "auto", "", "",
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
         )
         assert args.speakers is None
 
     def test_no_diarize_when_diarize_false(self):
         args = gui._build_args(
-            language="auto", model="auto", mode="full", diarize=False,
-            speakers="auto", speaker_names="", meeting_name="",
-            fmt="md", export_content="full", cleanup_model="llama3.1",
-            summary_model="llama3.1", summary_language="same", output_dir="outputs",
-            is_batch=False,
+            "auto", "auto", "full", False, "auto", "", "",
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
         )
         assert args.no_diarize is True
 
 
-class TestToggleSpeakerFields:
-    def test_diarize_true_shows_fields(self):
-        speakers_update, names_update = gui._toggle_speaker_fields(True)
-        assert speakers_update["visible"] is True
-        assert names_update["visible"] is True
-
-    def test_diarize_false_hides_fields(self):
-        speakers_update, names_update = gui._toggle_speaker_fields(False)
-        assert speakers_update["visible"] is False
-        assert names_update["visible"] is False
-
-
-class TestRunPipelineValidation:
-    def test_no_audio_files_raises(self):
-        with pytest.raises(gr.Error):
-            list(gui.run_pipeline(
-                None, "auto", "auto", "full", True, "auto", "", "",
-                "md", "full", "llama3.1", "llama3.1", "same", "outputs",
-            ))
-
-    def test_summary_only_with_transcript_mode_raises(self):
-        with pytest.raises(gr.Error):
-            list(gui.run_pipeline(
-                ["fake.wav"], "auto", "auto", "transcript", True, "auto", "", "",
-                "md", "summary", "llama3.1", "llama3.1", "same", "outputs",
-            ))
-
-    def test_missing_hf_token_with_diarize_raises(self, monkeypatch):
+class TestRunValidation:
+    def test_missing_hf_token_with_diarize_is_rejected(self, client, monkeypatch):
         monkeypatch.setattr(gui.config, "HF_TOKEN", "hf_XXXXXXXXXX")
-        with pytest.raises(gr.Error):
-            list(gui.run_pipeline(
-                ["fake.wav"], "auto", "auto", "full", True, "auto", "", "",
-                "md", "full", "llama3.1", "llama3.1", "same", "outputs",
-            ))
+        r = client.post(
+            "/run",
+            files={"audio_files": ("a.wav", b"fake", "audio/wav")},
+            data={"diarize": "true"},
+        )
+        assert "HF_TOKEN" in r.text
+        assert gui._current_job is None
+
+    def test_summary_only_with_transcript_mode_is_rejected(self, client):
+        r = client.post(
+            "/run",
+            files={"audio_files": ("a.wav", b"fake", "audio/wav")},
+            data={"mode": "transcript", "export_content": "summary"},
+        )
+        assert "riassunto" in r.text.lower()
+        assert gui._current_job is None
+
+
+class TestRunHappyPath:
+    def _patch_pipeline(self, monkeypatch, output_files=None, model="base"):
+        output_files = output_files or []
+        monkeypatch.setattr(gui.pipeline, "process_single", lambda audio_path, args, is_batch: list(output_files))
+        monkeypatch.setattr(gui.pipeline, "resolve_model", lambda args: model)
+
+    def test_creates_job_and_processes_in_background(self, client, monkeypatch, tmp_path):
+        output_file = tmp_path / "result.md"
+        output_file.write_text("hello", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(output_file)])
+
+        r = client.post("/run", files={"audio_files": ("a.wav", b"fake-audio", "audio/wav")}, data={})
+        assert r.status_code == 200
+
+        _wait_until_done()
+        assert gui._current_job.output_files == ["result.md"]
+        assert gui._current_job.errors == []
+
+    def test_status_endpoint_reflects_running_job(self, client, monkeypatch, tmp_path):
+        self._patch_pipeline(monkeypatch, output_files=[])
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        job_id = gui._current_job.id
+
+        r = client.get(f"/jobs/{job_id}/status")
+        assert r.status_code == 200
+
+    def test_status_endpoint_unknown_job_shows_message(self, client):
+        r = client.get("/jobs/does-not-exist/status")
+        assert r.status_code == 200
+        assert "non trovata" in r.text.lower()
+
+    def test_download_serves_generated_file(self, client, monkeypatch, tmp_path):
+        output_file = tmp_path / "result.md"
+        output_file.write_text("hello world", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(output_file)])
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+        job_id = gui._current_job.id
+
+        r = client.get(f"/download/{job_id}/result.md")
+        assert r.status_code == 200
+        assert r.content == b"hello world"
+
+    def test_download_rejects_unknown_filename(self, client, monkeypatch, tmp_path):
+        output_file = tmp_path / "result.md"
+        output_file.write_text("hello", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(output_file)])
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+        job_id = gui._current_job.id
+
+        r = client.get(f"/download/{job_id}/../../config.py")
+        assert r.status_code == 404
+
+    def test_failed_file_is_recorded_as_error_not_crash(self, client, monkeypatch, tmp_path):
+        def raising_process_single(audio_path, args, is_batch):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(gui.pipeline, "process_single", raising_process_single)
+        monkeypatch.setattr(gui.pipeline, "resolve_model", lambda args: "base")
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+
+        assert gui._current_job.output_files == []
+        assert len(gui._current_job.errors) == 1
+        assert gui._current_job.errors[0][1] == "boom"
+
+    def test_second_run_rejected_while_first_in_progress(self, client, monkeypatch):
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow_process_single(audio_path, args, is_batch):
+            started.set()
+            release.wait(timeout=5)
+            return []
+
+        monkeypatch.setattr(gui.pipeline, "process_single", slow_process_single)
+        monkeypatch.setattr(gui.pipeline, "resolve_model", lambda args: "base")
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        assert started.wait(timeout=2)
+
+        r2 = client.post("/run", files={"audio_files": ("b.wav", b"y", "audio/wav")}, data={})
+        assert "già in corso" in r2.text
+
+        release.set()
+        _wait_until_done()
