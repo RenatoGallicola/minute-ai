@@ -5,7 +5,8 @@
 # NEVER commit config.py to Git if it contains real tokens.
 
 # Whisper
-DEFAULT_WHISPER_MODEL = "medium"       # tiny | base | small | medium | large-v3
+DEFAULT_WHISPER_MODEL = "auto"         # auto | tiny | base | small | medium | large-v3
+                                        # 'auto' picks a model based on available RAM (needs psutil)
 DEFAULT_LANGUAGE = "auto"              # auto | it | en | fr | de | etc.
 DEFAULT_SPEAKERS = "auto"             # auto | integer (e.g. 2, 3)
 DEFAULT_COMPUTE_TYPE = "int8"         # int8 (CPU) | float16 (Nvidia GPU)

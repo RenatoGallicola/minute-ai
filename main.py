@@ -46,6 +46,7 @@ from src.cleanup import cleanup_transcript
 from src.summarize import summarize_transcript
 from src.export import export
 from src.batch import collect_audio_files, run_batch, print_batch_summary
+from src.hardware import auto_select_model
 
 
 def parse_args():
@@ -81,8 +82,11 @@ def parse_args():
     parser.add_argument(
         "--model", "-m",
         default=config.DEFAULT_WHISPER_MODEL,
-        choices=["tiny", "base", "small", "medium", "large-v3"],
-        help=f"Whisper model to use (default: {config.DEFAULT_WHISPER_MODEL})"
+        choices=["auto", "tiny", "base", "small", "medium", "large-v3"],
+        help=(
+            f"Whisper model to use, or 'auto' to pick one based on available RAM\n"
+            f"(default: {config.DEFAULT_WHISPER_MODEL})"
+        )
     )
     parser.add_argument(
         "--no-diarize",
@@ -219,6 +223,14 @@ def resolve_meeting_name(audio_path: str, args) -> str:
         Path(audio_path).stem.replace("_", " ").replace("-", " ").title()
 
 
+def resolve_model(args) -> str:
+    """Resolves '--model auto' to a concrete whisper model based on available RAM."""
+    if args.model != "auto":
+        return args.model
+    workers = args.parallel_workers if args.parallel else 1
+    return auto_select_model(parallel_workers=workers)
+
+
 def process_single(audio_path: str, args, is_batch: bool) -> list[str]:
     """Runs the full pipeline on a single audio file."""
     log = get_logger()
@@ -293,6 +305,7 @@ def main():
     log.info("minute-ai started")
 
     args = validate_args(args)
+    args.model = resolve_model(args)
 
     # Collect all audio files
     audio_files = collect_audio_files(args.audio)
