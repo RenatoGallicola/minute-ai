@@ -129,6 +129,22 @@ python main.py inputs/meeting.m4a \
 
 ---
 
+## GUI
+
+Prefer a graphical interface over the CLI? minute-ai also ships a [Gradio](https://gradio.app) web app
+that wraps the same pipeline:
+
+```bash
+venv\Scripts\activate
+python gui.py
+```
+
+Opens automatically at `http://127.0.0.1:7860` — everything still runs locally, the browser is just
+the interface. Upload one or more audio files, pick your options, and download the generated files
+when done. Live pipeline logs are streamed to the page as processing happens.
+
+---
+
 ## Pipeline modes
 
 The `--mode` parameter controls which steps of the pipeline are executed:
@@ -229,12 +245,14 @@ minute-ai/
 │   ├── ollama_client.py  # Shared HTTP client for Ollama
 │   ├── export.py         # md / txt / docx / pdf export
 │   ├── batch.py          # Batch processing logic
+│   ├── hardware.py       # RAM-based auto-selection of the whisper model
 │   └── logger.py         # Centralized logging
 ├── tests/               # pytest unit tests
 ├── inputs/              # Audio files (git-ignored)
 ├── outputs/             # Generated files (git-ignored)
 ├── logs/                # Log files (git-ignored)
-├── main.py              # Entry point
+├── main.py              # CLI entry point
+├── gui.py               # Gradio web GUI (wraps the same pipeline)
 ├── config.py            # Local config with tokens (do not commit!)
 ├── config.example.py    # Config template (safe to commit)
 ├── requirements.in      # Direct dependencies (human-maintained)
@@ -294,6 +312,6 @@ There is no automation (hook or CI) that regenerates `requirements.txt` — runn
 
 ## Roadmap
 
-- [ ] Graphical user interface (GUI)
+- [x] Graphical user interface (GUI)
 - [ ] Direct Notion API integration
 - [x] Automatic model selection based on available RAM
