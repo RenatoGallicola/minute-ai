@@ -38,24 +38,24 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 
 LANGUAGES = [
-    ("auto", "Rilevamento automatico"), ("it", "Italiano"), ("en", "Inglese"),
-    ("fr", "Francese"), ("de", "Tedesco"), ("es", "Spagnolo"), ("pt", "Portoghese"),
+    ("auto", "Auto-detect"), ("it", "Italian"), ("en", "English"),
+    ("fr", "French"), ("de", "German"), ("es", "Spanish"), ("pt", "Portuguese"),
 ]
 MODELS = [
-    ("auto", "Automatico (in base alla RAM disponibile)"), ("tiny", "Tiny — più veloce"),
-    ("base", "Base"), ("small", "Small"), ("medium", "Medium"), ("large-v3", "Large-v3 — più accurato"),
+    ("auto", "Automatic (based on available RAM)"), ("tiny", "Tiny — fastest"),
+    ("base", "Base"), ("small", "Small"), ("medium", "Medium"), ("large-v3", "Large-v3 — most accurate"),
 ]
-SPEAKER_COUNTS = [("auto", "Automatico")] + [(str(n), str(n)) for n in range(1, 7)]
+SPEAKER_COUNTS = [("auto", "Automatic")] + [(str(n), str(n)) for n in range(1, 7)]
 MODES = [
-    ("full", "Completa — trascrizione + pulizia + riassunto"), ("transcript", "Solo trascrizione"),
-    ("clean", "Trascrizione pulita, senza riassunto"), ("summary", "Solo riassunto"),
+    ("full", "Full — transcript + cleanup + summary"), ("transcript", "Transcript only"),
+    ("clean", "Cleaned transcript, no summary"), ("summary", "Summary only"),
 ]
 FORMATS = [
-    ("md", "Markdown (.md)"), ("txt", "Testo semplice (.txt)"),
-    ("docx", "Word (.docx)"), ("pdf", "PDF"), ("all", "Tutti i formati"),
+    ("md", "Markdown (.md)"), ("txt", "Plain text (.txt)"),
+    ("docx", "Word (.docx)"), ("pdf", "PDF"), ("all", "All formats"),
 ]
-EXPORT_CONTENTS = [("full", "Riassunto + trascrizione completa"), ("summary", "Solo riassunto")]
-SUMMARY_LANGUAGES = [("same", "Stessa lingua della trascrizione")] + LANGUAGES[1:]
+EXPORT_CONTENTS = [("full", "Summary + full transcript"), ("summary", "Summary only")]
+SUMMARY_LANGUAGES = [("same", "Same as transcript")] + LANGUAGES[1:]
 
 INDEX_CONTEXT = {
     "languages": LANGUAGES,
@@ -160,7 +160,7 @@ def run(
 
     with _lock:
         if _current_job is not None and not _current_job.done:
-            return _status_response(request, None, "Un'elaborazione è già in corso. Attendi il completamento.")
+            return _status_response(request, None, "A job is already running. Please wait for it to finish.")
         job = Job(str(uuid.uuid4()))
         _current_job = job
 
@@ -169,8 +169,8 @@ def run(
             _current_job = None
         return _status_response(
             request, None,
-            "Manca l'HF_TOKEN in config.py, necessario per la diarizzazione. "
-            "Aggiungilo oppure disattiva 'Identifica i parlanti'.",
+            "HF_TOKEN is missing from config.py, which is required for diarization. "
+            "Add it, or turn off 'Identify speakers'.",
         )
 
     if export_content == "summary" and mode in ("transcript", "clean"):
@@ -178,8 +178,8 @@ def run(
             _current_job = None
         return _status_response(
             request, None,
-            "'Solo riassunto' richiede una modalità che generi un riassunto "
-            "('Completa' o 'Solo riassunto').",
+            "'Summary only' requires a mode that generates a summary "
+            "('Full' or 'Summary only').",
         )
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="minute-ai-"))
@@ -196,7 +196,7 @@ def run(
         shutil.rmtree(tmp_dir, ignore_errors=True)
         with _lock:
             _current_job = None
-        return _status_response(request, None, "Carica almeno un file audio.")
+        return _status_response(request, None, "Please upload at least one audio file.")
 
     is_batch = len(audio_paths) > 1
     args = _build_args(
@@ -234,7 +234,7 @@ def run(
 def job_status(request: Request, job_id: str):
     with _lock:
         job = _current_job if _current_job and _current_job.id == job_id else None
-    error = None if job else "Elaborazione non trovata (forse è stata avviata una nuova elaborazione)."
+    error = None if job else "No matching job found (a new run may have started since)."
     return _status_response(request, job, error)
 
 
@@ -243,10 +243,10 @@ def download(job_id: str, filename: str):
     with _lock:
         job = _current_job if _current_job and _current_job.id == job_id else None
     if not job or filename not in job.output_paths:
-        raise HTTPException(status_code=404, detail="File non trovato.")
+        raise HTTPException(status_code=404, detail="File not found.")
     path = job.output_paths[filename]
     if not path.exists():
-        raise HTTPException(status_code=404, detail="File non trovato.")
+        raise HTTPException(status_code=404, detail="File not found.")
     return FileResponse(path, filename=filename)
 
 

@@ -1,35 +1,42 @@
 {% macro select_field(name, label, options, selected, hint=None) %}
 <div>
-  <label for="{{ name }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ label }}</label>
+  <label for="{{ name }}" class="block text-sm text-ink dark:text-ink-dark mb-1.5">{{ label }}</label>
   <select id="{{ name }}" name="{{ name }}"
-          class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none">
+          class="w-full rounded-lg border border-line dark:border-line-dark bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-amber dark:focus-visible:border-amber-dark focus-visible:ring-2 focus-visible:ring-amber/30 dark:focus-visible:ring-amber-dark/30">
     {% for value, text in options %}
     <option value="{{ value }}" {% if value == selected %}selected{% endif %}>{{ text }}</option>
     {% endfor %}
   </select>
-  {% if hint %}<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ hint }}</p>{% endif %}
+  {% if hint %}<p class="mt-1 text-xs text-muted dark:text-muted-dark">{{ hint }}</p>{% endif %}
 </div>
 {% endmacro %}
 
 {% macro text_field(name, label, placeholder="", value="", hint=None) %}
 <div>
-  <label for="{{ name }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ label }}</label>
+  <label for="{{ name }}" class="block text-sm text-ink dark:text-ink-dark mb-1.5">{{ label }}</label>
   <input type="text" id="{{ name }}" name="{{ name }}" value="{{ value }}" placeholder="{{ placeholder }}"
-         class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none placeholder:text-slate-400">
-  {% if hint %}<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ hint }}</p>{% endif %}
+         class="w-full rounded-lg border border-line dark:border-line-dark bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark px-3 py-2 text-sm placeholder:text-muted/70 dark:placeholder:text-muted-dark/70 focus-visible:outline-none focus-visible:border-amber dark:focus-visible:border-amber-dark focus-visible:ring-2 focus-visible:ring-amber/30 dark:focus-visible:ring-amber-dark/30">
+  {% if hint %}<p class="mt-1 text-xs text-muted dark:text-muted-dark">{{ hint }}</p>{% endif %}
 </div>
 {% endmacro %}
 
-{% macro radio_pills(name, label, options, selected) %}
+{% macro radio_pills(name, label, options, selected, onchange=None) %}
 <div>
-  <span class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ label }}</span>
+  <span class="block text-sm text-ink dark:text-ink-dark mb-2">{{ label }}</span>
   <div class="flex flex-wrap gap-2">
     {% for value, text in options %}
     <label class="cursor-pointer select-none">
-      <input type="radio" name="{{ name }}" value="{{ value }}" {% if value == selected %}checked{% endif %} class="peer sr-only">
-      <span class="inline-block rounded-full border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition-colors">{{ text }}</span>
+      <input type="radio" name="{{ name }}" value="{{ value }}" {% if value == selected %}checked{% endif %}
+             {% if onchange %}onchange="{{ onchange }}"{% endif %} class="peer sr-only">
+      <span class="inline-block rounded-full border border-line dark:border-line-dark px-3 py-1.5 text-sm text-ink dark:text-ink-dark transition-colors
+                   peer-checked:bg-amber dark:peer-checked:bg-amber-dark peer-checked:border-amber dark:peer-checked:border-amber-dark peer-checked:text-white
+                   peer-focus-visible:ring-2 peer-focus-visible:ring-amber/40 dark:peer-focus-visible:ring-amber-dark/40">{{ text }}</span>
     </label>
     {% endfor %}
   </div>
 </div>
+{% endmacro %}
+
+{% macro eyebrow(text) %}
+<p class="text-xs font-semibold tracking-widest uppercase text-muted dark:text-muted-dark mb-4">{{ text }}</p>
 {% endmacro %}

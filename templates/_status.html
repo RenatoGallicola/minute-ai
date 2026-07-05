@@ -1,34 +1,34 @@
 {% if error %}
-<div class="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 px-4 py-3 text-sm">
-  ⚠ {{ error }}
+<div class="rounded-xl border border-bad/30 dark:border-bad-dark/30 bg-bad/5 dark:bg-bad-dark/10 text-bad dark:text-bad-dark px-4 py-3 text-sm">
+  {{ error }}
 </div>
 {% elif not job %}
-<div class="flex items-center justify-center h-80 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-sm text-slate-400 dark:text-slate-500 px-6">
-  I log dell'elaborazione appariranno qui
+<div class="flex items-center justify-center h-80 rounded-xl border border-dashed border-line dark:border-line-dark text-center text-sm text-muted dark:text-muted-dark px-6">
+  Processing logs will appear here
 </div>
 {% else %}
 <div {% if not job.done %}hx-get="/jobs/{{ job.id }}/status" hx-trigger="every 1s" hx-target="#status-panel" hx-swap="innerHTML"{% endif %}>
-  <pre id="log-box" class="h-80 overflow-y-auto rounded-xl bg-slate-900 text-slate-200 font-mono text-xs leading-relaxed p-4 whitespace-pre-wrap break-words">{{ job.log_text }}</pre>
+  <pre id="log-box" class="h-80 overflow-y-auto rounded-xl bg-paper-dark text-ink-dark font-mono text-xs leading-relaxed p-4 whitespace-pre-wrap wrap-break-word">{{ job.log_text }}</pre>
 
   {% if not job.done %}
-  <p class="mt-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-    <svg class="h-4 w-4 animate-spin text-indigo-500" viewBox="0 0 24 24" fill="none">
+  <p class="mt-3 flex items-center gap-2 text-sm text-muted dark:text-muted-dark">
+    <svg class="h-4 w-4 animate-spin text-amber dark:text-amber-dark" viewBox="0 0 24 24" fill="none">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
     </svg>
-    Elaborazione in corso...
+    Processing…
   </p>
   {% endif %}
 
   {% if job.done %}
     {% if job.output_files %}
     <div class="mt-4">
-      <p class="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-2">✔ {{ job.output_files|length }} file generati</p>
+      <p class="text-sm text-good dark:text-good-dark mb-2">{{ job.output_files|length }} file{{ "s" if job.output_files|length != 1 }} generated</p>
       <div class="flex flex-col gap-1.5">
         {% for f in job.output_files %}
         <a href="/download/{{ job.id }}/{{ f }}" download
-           class="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-          <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+           class="inline-flex items-center gap-2 rounded-lg border border-line dark:border-line-dark px-3 py-2 text-sm text-ink dark:text-ink-dark hover:border-amber dark:hover:border-amber-dark transition-colors">
+          <svg class="h-4 w-4 shrink-0 text-muted dark:text-muted-dark" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10 3a1 1 0 0 1 1 1v7.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V4a1 1 0 0 1 1-1Z"/>
             <path d="M4 15a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/>
           </svg>
@@ -39,9 +39,9 @@
     </div>
     {% endif %}
     {% if job.errors %}
-    <div class="mt-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 px-4 py-3">
-      <p class="text-sm font-medium text-rose-600 dark:text-rose-400">✖ {{ job.errors|length }} file non completati</p>
-      <ul class="mt-1 text-xs text-rose-600/80 dark:text-rose-400/80 list-disc list-inside">
+    <div class="mt-3 rounded-xl border border-bad/30 dark:border-bad-dark/30 bg-bad/5 dark:bg-bad-dark/10 px-4 py-3">
+      <p class="text-sm text-bad dark:text-bad-dark">{{ job.errors|length }} file{{ "s" if job.errors|length != 1 }} failed</p>
+      <ul class="mt-1 text-xs text-bad/80 dark:text-bad-dark/80 list-disc list-inside">
         {% for name, message in job.errors %}
         <li>{{ name }}: {{ message }}</li>
         {% endfor %}
@@ -49,7 +49,7 @@
     </div>
     {% endif %}
     {% if not job.output_files and not job.errors %}
-    <p class="mt-3 text-sm text-slate-500">Nessun file generato.</p>
+    <p class="mt-3 text-sm text-muted dark:text-muted-dark">No files were generated.</p>
     {% endif %}
   {% endif %}
 </div>

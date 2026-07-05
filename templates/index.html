@@ -1,104 +1,107 @@
 <!doctype html>
 {% import "_macros.html" as f %}
-<html lang="it" class="h-full">
+<html lang="en" class="h-full">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>minute-ai</title>
+  <title>Minute AI</title>
   <link rel="stylesheet" href="/static/tailwind.css">
   <script src="/static/htmx.min.js"></script>
 </head>
-<body class="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased">
-  <div class="mx-auto max-w-5xl px-4 py-10">
-    <header class="text-center mb-8">
-      <h1 class="text-3xl font-semibold tracking-tight flex items-center justify-center gap-2">
-        <span>🎙️</span> minute-ai
-      </h1>
-      <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-        Trascrizione e riassunto riunioni —
-        <span class="font-medium text-indigo-600 dark:text-indigo-400">100% locale</span>,
-        nessun dato lascia il tuo PC
-      </p>
+<body class="min-h-full bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark antialiased font-sans">
+  <div class="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14">
+
+    <header class="mb-8 flex items-baseline gap-3 flex-wrap">
+      <h1 class="font-serif text-3xl sm:text-[2.15rem] leading-none">Minute AI</h1>
+      <p class="text-sm text-muted dark:text-muted-dark">Audio → transcript → summary, fully local.</p>
     </header>
 
-    <div class="grid gap-6 lg:grid-cols-2 items-start">
-      <form id="run-form" hx-post="/run" hx-target="#status-panel" hx-swap="innerHTML"
-            hx-encoding="multipart/form-data" class="flex flex-col gap-4">
+    <div class="grid gap-6 lg:grid-cols-5 items-start">
 
-        <div id="dropzone"
-             class="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 text-center hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors">
-          <label for="audio_files" class="cursor-pointer block">
-            <svg class="mx-auto h-8 w-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <form id="run-form" hx-post="/run" hx-target="#status-panel" hx-swap="innerHTML"
+            hx-encoding="multipart/form-data"
+            class="lg:col-span-3 rounded-2xl border border-line dark:border-line-dark bg-panel dark:bg-panel-dark shadow-sm divide-y divide-line dark:divide-line-dark">
+
+        <section class="p-6">
+          {{ f.eyebrow("Audio") }}
+          <label for="audio_files" class="cursor-pointer block rounded-xl border-2 border-dashed border-line dark:border-line-dark hover:border-amber dark:hover:border-amber-dark transition-colors p-6 text-center">
+            <svg class="mx-auto h-7 w-7 text-muted dark:text-muted-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5" />
             </svg>
-            <span class="mt-2 block text-sm font-medium">Trascina qui uno o più file audio o clicca per selezionarli</span>
-            <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">mp3, m4a, wav, flac, ogg, wma, aac</span>
+            <span class="mt-2 block text-sm">Drop one or more audio files here, or click to browse</span>
+            <span class="mt-1 block text-xs text-muted dark:text-muted-dark">mp3, m4a, wav, flac, ogg, wma, aac</span>
           </label>
           <input type="file" id="audio_files" name="audio_files" multiple accept="audio/*"
                  class="hidden" onchange="updateFileList(this)">
-          <div id="file-list" class="mt-3 flex flex-wrap gap-1.5 justify-center"></div>
-        </div>
+          <div id="file-list" class="mt-3 flex flex-wrap gap-1.5"></div>
+        </section>
 
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm flex flex-col gap-4">
-          {{ f.select_field("language", "Lingua audio", languages, "auto") }}
-          {{ f.select_field("model", "Modello Whisper", models, default_model) }}
-          {{ f.radio_pills("mode", "Modalità pipeline", modes, "full") }}
-        </div>
+        <section class="p-6 flex flex-col gap-4">
+          {{ f.eyebrow("Transcription") }}
+          {{ f.select_field("language", "Audio language", languages, "auto") }}
+          {{ f.select_field("model", "Whisper model", models, default_model) }}
+          {{ f.radio_pills("mode", "Pipeline mode", modes, "full", onchange="handleModeChange(this)") }}
+        </section>
 
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm flex flex-col gap-4">
+        <section class="p-6 flex flex-col gap-4">
+          {{ f.eyebrow("Speakers") }}
           <label class="flex items-center gap-2 cursor-pointer select-none">
             <input type="checkbox" id="diarize" name="diarize" value="true" checked onchange="toggleSpeakerFields(this)"
-                   class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Identifica i parlanti (diarizzazione)</span>
+                   class="h-4 w-4 rounded border-line dark:border-line-dark text-amber focus-visible:ring-2 focus-visible:ring-amber/40">
+            <span class="text-sm text-ink dark:text-ink-dark">Identify speakers (diarization)</span>
           </label>
           <div id="speaker-fields" class="flex flex-col gap-4">
-            {{ f.select_field("speakers", "Numero di parlanti", speaker_counts, "auto") }}
-            {{ f.text_field("speaker_names", "Nomi dei parlanti (in ordine, solo file singolo)", "Marco,Sara") }}
+            {{ f.select_field("speakers", "Number of speakers", speaker_counts, "auto") }}
+            {{ f.text_field("speaker_names", "Speaker names, in order (single file only)", "Alex,Taylor") }}
           </div>
-          {{ f.text_field("meeting_name", "Nome riunione (solo file singolo)", "Se vuoto, usa il nome del file") }}
-        </div>
+          {{ f.text_field("meeting_name", "Meeting name (single file only)", "Uses the filename if left blank") }}
+        </section>
 
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm flex flex-col gap-4">
-          {{ f.select_field("format", "Formato di esportazione", formats, default_format) }}
-          {{ f.radio_pills("export_content", "Contenuto esportato", export_contents, default_export_content) }}
-        </div>
+        <section class="p-6 flex flex-col gap-4">
+          {{ f.eyebrow("Export") }}
+          {{ f.select_field("format", "Export format", formats, default_format) }}
+          <div id="export-content-field">
+            {{ f.radio_pills("export_content", "Export content", export_contents, default_export_content) }}
+          </div>
+        </section>
 
-        <details class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm group">
-          <summary class="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 select-none">
-            Impostazioni avanzate
+        <details class="p-6 group">
+          <summary class="cursor-pointer select-none text-xs font-semibold tracking-widest uppercase text-muted dark:text-muted-dark">
+            Advanced settings
           </summary>
-          <div class="mt-4 flex flex-col gap-4">
-            {{ f.text_field("cleanup_model", "Modello Ollama per la pulizia", value=default_cleanup_model) }}
-            {{ f.text_field("summary_model", "Modello Ollama per il riassunto", value=default_summary_model) }}
-            {{ f.select_field("summary_language", "Lingua del riassunto", summary_languages, "same") }}
-            {{ f.text_field("output_dir", "Cartella di output", value=default_output_dir) }}
+          <div class="mt-5 flex flex-col gap-4">
+            {{ f.text_field("cleanup_model", "Ollama model for cleanup", value=default_cleanup_model) }}
+            {{ f.text_field("summary_model", "Ollama model for summary", value=default_summary_model) }}
+            {{ f.select_field("summary_language", "Summary language", summary_languages, "same") }}
+            {{ f.text_field("output_dir", "Output folder", value=default_output_dir) }}
           </div>
         </details>
 
-        <button type="submit"
-                class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium py-3 shadow-sm transition-colors">
-          <span class="htmx-indicator inline-flex items-center gap-2">
-            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-            </svg>
-            Avvio...
-          </span>
-          <span class="[.htmx-request_&]:hidden">▶ Genera</span>
-        </button>
+        <section class="p-6">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber dark:bg-amber-dark hover:bg-amber-hover dark:hover:bg-amber-hover-dark text-white font-medium py-3 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/50 dark:focus-visible:ring-amber-dark/50">
+            <span class="htmx-indicator inline-flex items-center gap-2">
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              Starting…
+            </span>
+            <span class="in-[.htmx-request]:hidden inline-flex items-center gap-2">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Generate
+            </span>
+          </button>
+        </section>
       </form>
 
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm lg:sticky lg:top-10">
-        <p class="text-sm font-semibold mb-3">Log ed esiti</p>
+      <div class="lg:col-span-2 lg:sticky lg:top-10 rounded-2xl border border-line dark:border-line-dark bg-panel dark:bg-panel-dark shadow-sm p-6">
+        {{ f.eyebrow("Log & results") }}
         <div id="status-panel">
           {% include "_status.html" %}
         </div>
       </div>
     </div>
-
-    <footer class="text-center text-xs text-slate-400 dark:text-slate-600 mt-10">
-      minute-ai · whisperX + Ollama, in esecuzione interamente sul tuo PC
-    </footer>
   </div>
 
   <script>
@@ -106,12 +109,17 @@
       document.getElementById('speaker-fields').classList.toggle('hidden', !checkbox.checked);
     }
 
+    function handleModeChange(radio) {
+      const hasSummary = radio.value === 'full' || radio.value === 'summary';
+      document.getElementById('export-content-field').classList.toggle('hidden', !hasSummary);
+    }
+
     function updateFileList(input) {
       const list = document.getElementById('file-list');
       list.innerHTML = '';
       Array.from(input.files).forEach((file) => {
         const pill = document.createElement('span');
-        pill.className = 'inline-block rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-xs px-2.5 py-1';
+        pill.className = 'inline-block rounded-full bg-amber/10 dark:bg-amber-dark/15 text-amber dark:text-amber-dark text-xs px-2.5 py-1';
         pill.textContent = file.name;
         list.appendChild(pill);
       });
