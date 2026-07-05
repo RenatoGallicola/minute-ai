@@ -52,9 +52,13 @@
           </label>
           <div id="speaker-fields" class="flex flex-col gap-4">
             {{ f.select_field("speakers", "Number of speakers", speaker_counts, "auto") }}
-            {{ f.text_field("speaker_names", "Speaker names, in order (single file only)", "Alex,Taylor") }}
+            <div id="speaker-names-wrapper">
+              {{ f.text_field("speaker_names", "Speaker names, in order (single file only)", "Alex,Taylor") }}
+            </div>
           </div>
-          {{ f.text_field("meeting_name", "Meeting name (single file only)", "Uses the filename if left blank") }}
+          <div id="meeting-name-wrapper">
+            {{ f.text_field("meeting_name", "Meeting name (single file only)", "Uses the filename if left blank") }}
+          </div>
         </section>
 
         <section class="p-6 flex flex-col gap-4">
@@ -73,7 +77,6 @@
             {{ f.text_field("cleanup_model", "Ollama model for cleanup", value=default_cleanup_model) }}
             {{ f.text_field("summary_model", "Ollama model for summary", value=default_summary_model) }}
             {{ f.select_field("summary_language", "Summary language", summary_languages, "same") }}
-            {{ f.text_field("output_dir", "Output folder", value=default_output_dir) }}
           </div>
         </details>
 
@@ -115,14 +118,19 @@
     }
 
     function updateFileList(input) {
+      const files = Array.from(input.files);
       const list = document.getElementById('file-list');
       list.innerHTML = '';
-      Array.from(input.files).forEach((file) => {
+      files.forEach((file) => {
         const pill = document.createElement('span');
         pill.className = 'inline-block rounded-full bg-amber/10 dark:bg-amber-dark/15 text-amber dark:text-amber-dark text-xs px-2.5 py-1';
         pill.textContent = file.name;
         list.appendChild(pill);
       });
+
+      const isMultiFile = files.length > 1;
+      document.getElementById('speaker-names-wrapper').classList.toggle('hidden', isMultiFile);
+      document.getElementById('meeting-name-wrapper').classList.toggle('hidden', isMultiFile);
     }
 
     document.body.addEventListener('htmx:afterSwap', (evt) => {

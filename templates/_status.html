@@ -25,6 +25,16 @@
     <div class="mt-4">
       <p class="text-sm text-good dark:text-good-dark mb-2">{{ job.output_files|length }} file{{ "s" if job.output_files|length != 1 }} generated</p>
       <div class="flex flex-col gap-1.5">
+        {% if job.output_files|length > 1 %}
+        <a href="/download/{{ job.id }}/all" download
+           class="inline-flex items-center gap-2 rounded-lg bg-amber dark:bg-amber-dark hover:bg-amber-hover dark:hover:bg-amber-hover-dark text-white px-3 py-2 text-sm transition-colors">
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 3a1 1 0 0 1 1 1v7.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V4a1 1 0 0 1 1-1Z"/>
+            <path d="M4 15a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/>
+          </svg>
+          Download all ({{ job.output_files|length }} files)
+        </a>
+        {% endif %}
         {% for f in job.output_files %}
         <a href="/download/{{ job.id }}/{{ f }}" download
            class="inline-flex items-center gap-2 rounded-lg border border-line dark:border-line-dark px-3 py-2 text-sm text-ink dark:text-ink-dark hover:border-amber dark:hover:border-amber-dark transition-colors min-w-0">

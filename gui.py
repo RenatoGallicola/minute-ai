@@ -11,17 +11,20 @@ Run with:
 """
 
 import argparse
+import io
 import logging
+import re
 import shutil
 import tempfile
 import threading
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -70,7 +73,6 @@ INDEX_CONTEXT = {
     "summary_languages": SUMMARY_LANGUAGES,
     "default_cleanup_model": config.DEFAULT_CLEANUP_MODEL,
     "default_summary_model": config.DEFAULT_SUMMARY_MODEL,
-    "default_output_dir": config.DEFAULT_OUTPUT_DIR,
 }
 
 
@@ -88,6 +90,25 @@ class Job:
         return "\n".join(self.log_lines)
 
 
+_NOISY_LINE_PREFIXES = ("Model:",)
+_EXPORTED_LINE = re.compile(r"^Exported:\s*(.+)$")
+
+
+def _clean_log_line(message: str) -> Optional[str]:
+    """Trims and simplifies a raw pipeline log line for display in the web UI.
+
+    The CLI log format includes terminal-oriented details (indentation, a
+    settings dump, full server-side paths) that don't read well in a browser.
+    """
+    text = message.strip()
+    if text.startswith(_NOISY_LINE_PREFIXES):
+        return None
+    exported = _EXPORTED_LINE.match(text)
+    if exported:
+        return f"Exported {Path(exported.group(1)).name}"
+    return text
+
+
 class _JobLogHandler(logging.Handler):
     """Forwards log records into a Job's log so the UI can poll and display them."""
 
@@ -96,8 +117,11 @@ class _JobLogHandler(logging.Handler):
         self.job = job
 
     def emit(self, record: logging.LogRecord):
+        cleaned = _clean_log_line(record.getMessage())
+        if cleaned is None:
+            return
         prefix = {"WARNING": "⚠ ", "ERROR": "✖ "}.get(record.levelname, "")
-        self.job.log_lines.append(f"{prefix}{record.getMessage()}")
+        self.job.log_lines.append(f"{prefix}{cleaned}")
 
 
 _lock = threading.Lock()
@@ -154,7 +178,6 @@ def run(
     cleanup_model: str = Form("llama3.1"),
     summary_model: str = Form("llama3.1"),
     summary_language: str = Form("same"),
-    output_dir: str = Form("outputs"),
 ):
     global _current_job
 
@@ -201,7 +224,8 @@ def run(
     is_batch = len(audio_paths) > 1
     args = _build_args(
         language, model, mode, bool(diarize), speakers, speaker_names, meeting_name,
-        format, export_content, cleanup_model, summary_model, summary_language, output_dir,
+        format, export_content, cleanup_model, summary_model, summary_language,
+        config.DEFAULT_OUTPUT_DIR,
         is_batch,
     )
     args.model = pipeline.resolve_model(args)
@@ -236,6 +260,26 @@ def job_status(request: Request, job_id: str):
         job = _current_job if _current_job and _current_job.id == job_id else None
     error = None if job else "No matching job found (a new run may have started since)."
     return _status_response(request, job, error)
+
+
+@app.get("/download/{job_id}/all")
+def download_all(job_id: str):
+    with _lock:
+        job = _current_job if _current_job and _current_job.id == job_id else None
+    if not job or not job.output_paths:
+        raise HTTPException(status_code=404, detail="No files to download.")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, path in job.output_paths.items():
+            if path.exists():
+                zf.write(path, arcname=name)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=minute-ai-export.zip"},
+    )
 
 
 @app.get("/download/{job_id}/{filename}")

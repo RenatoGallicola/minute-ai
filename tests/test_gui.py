@@ -1,5 +1,7 @@
+import io
 import threading
 import time
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -181,3 +183,68 @@ class TestRunHappyPath:
 
         release.set()
         _wait_until_done()
+
+    def test_download_all_returns_zip_with_every_file(self, client, monkeypatch, tmp_path):
+        f1 = tmp_path / "result.md"
+        f1.write_text("markdown content", encoding="utf-8")
+        f2 = tmp_path / "result.pdf"
+        f2.write_text("pdf content", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(f1), str(f2)])
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+        job_id = gui._current_job.id
+
+        r = client.get(f"/download/{job_id}/all")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+            assert sorted(zf.namelist()) == ["result.md", "result.pdf"]
+            assert zf.read("result.md") == b"markdown content"
+            assert zf.read("result.pdf") == b"pdf content"
+
+    def test_download_all_404_when_no_job(self, client):
+        r = client.get("/download/does-not-exist/all")
+        assert r.status_code == 404
+
+    def test_status_page_shows_download_all_only_for_multiple_files(self, client, monkeypatch, tmp_path):
+        f1 = tmp_path / "result.md"
+        f1.write_text("x", encoding="utf-8")
+        f2 = tmp_path / "result.pdf"
+        f2.write_text("x", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(f1), str(f2)])
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+        job_id = gui._current_job.id
+
+        r = client.get(f"/jobs/{job_id}/status")
+        assert "Download all" in r.text
+
+    def test_status_page_hides_download_all_for_single_file(self, client, monkeypatch, tmp_path):
+        f1 = tmp_path / "result.md"
+        f1.write_text("x", encoding="utf-8")
+        self._patch_pipeline(monkeypatch, output_files=[str(f1)])
+
+        client.post("/run", files={"audio_files": ("a.wav", b"x", "audio/wav")}, data={})
+        _wait_until_done()
+        job_id = gui._current_job.id
+
+        r = client.get(f"/jobs/{job_id}/status")
+        assert "Download all" not in r.text
+
+
+class TestCleanLogLine:
+    def test_strips_whitespace(self):
+        assert gui._clean_log_line("      Detected language: en") == "Detected language: en"
+
+    def test_filters_out_model_debug_line(self):
+        assert gui._clean_log_line("      Model: medium | Device: cpu | Language: auto-detect") is None
+
+    def test_simplifies_exported_line_to_basename(self):
+        result = gui._clean_log_line("      Exported: outputs/2026-07-05_10-00_Team_Sync.md")
+        assert result == "Exported 2026-07-05_10-00_Team_Sync.md"
+
+    def test_leaves_other_lines_unchanged(self):
+        assert gui._clean_log_line("[1/4] Transcribing audio: meeting.wav") == "[1/4] Transcribing audio: meeting.wav"
