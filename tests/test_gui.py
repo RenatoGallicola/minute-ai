@@ -248,3 +248,7 @@ class TestCleanLogLine:
 
     def test_leaves_other_lines_unchanged(self):
         assert gui._clean_log_line("[1/4] Transcribing audio: meeting.wav") == "[1/4] Transcribing audio: meeting.wav"
+
+    def test_simplifies_transcribing_line_to_basename(self):
+        message = r"[1/4] Transcribing audio: C:\Users\renat\AppData\Local\Temp\minute-ai-xyz\meeting.wav"
+        assert gui._clean_log_line(message) == "[1/4] Transcribing audio: meeting.wav"

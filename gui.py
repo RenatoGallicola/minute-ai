@@ -92,6 +92,7 @@ class Job:
 
 _NOISY_LINE_PREFIXES = ("Model:",)
 _EXPORTED_LINE = re.compile(r"^Exported:\s*(.+)$")
+_TRANSCRIBING_LINE = re.compile(r"^(\[1/4\] Transcribing audio:)\s*(.+)$")
 
 
 def _clean_log_line(message: str) -> Optional[str]:
@@ -106,6 +107,9 @@ def _clean_log_line(message: str) -> Optional[str]:
     exported = _EXPORTED_LINE.match(text)
     if exported:
         return f"Exported {Path(exported.group(1)).name}"
+    transcribing = _TRANSCRIBING_LINE.match(text)
+    if transcribing:
+        return f"{transcribing.group(1)} {Path(transcribing.group(2)).name}"
     return text
 
 
