@@ -32,8 +32,8 @@ class TestIndex:
     def test_loads(self, client):
         r = client.get("/")
         assert r.status_code == 200
-        assert "minute-ai" in r.text
-        assert "Genera" in r.text
+        assert "Minute AI" in r.text
+        assert "Generate" in r.text
 
 
 class TestBuildArgs:
@@ -87,7 +87,7 @@ class TestRunValidation:
             files={"audio_files": ("a.wav", b"fake", "audio/wav")},
             data={"mode": "transcript", "export_content": "summary"},
         )
-        assert "riassunto" in r.text.lower()
+        assert "summary" in r.text.lower()
         assert gui._current_job is None
 
 
@@ -120,7 +120,7 @@ class TestRunHappyPath:
     def test_status_endpoint_unknown_job_shows_message(self, client):
         r = client.get("/jobs/does-not-exist/status")
         assert r.status_code == 200
-        assert "non trovata" in r.text.lower()
+        assert "no matching job" in r.text.lower()
 
     def test_download_serves_generated_file(self, client, monkeypatch, tmp_path):
         output_file = tmp_path / "result.md"
@@ -177,7 +177,7 @@ class TestRunHappyPath:
         assert started.wait(timeout=2)
 
         r2 = client.post("/run", files={"audio_files": ("b.wav", b"y", "audio/wav")}, data={})
-        assert "già in corso" in r2.text
+        assert "already running" in r2.text
 
         release.set()
         _wait_until_done()
