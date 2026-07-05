@@ -1,4 +1,4 @@
-# minute-ai 🎙️
+# minute-ai
 
 Local pipeline for transcription, cleanup, and summarization of meeting audio.  
 Everything runs on your PC — no data is sent to external servers.
