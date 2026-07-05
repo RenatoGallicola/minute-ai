@@ -26,7 +26,7 @@ Everything runs on your PC — no data is sent to external servers.
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/yourname/minute-ai.git
+git clone https://github.com/RenatoGallicola/minute-ai.git
 cd minute-ai
 ```
 
@@ -321,11 +321,3 @@ There is no automation (hook or CI) that regenerates `requirements.txt` — runn
 - **torchcodec not installed** — whisperX uses ffmpeg directly as fallback, no action needed
 - **Lightning checkpoint upgrade** — cosmetic warning from pyannote, does not affect results
 - **symlinks warning on Windows** — HuggingFace cache works in degraded mode, files are duplicated but functional. To fix, enable Windows Developer Mode.
-
----
-
-## Roadmap
-
-- [x] Graphical user interface (GUI)
-- [ ] Direct Notion API integration
-- [x] Automatic model selection based on available RAM
