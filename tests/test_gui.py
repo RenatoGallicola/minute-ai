@@ -2,6 +2,7 @@ import io
 import threading
 import time
 import zipfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,6 +37,30 @@ class TestIndex:
         assert r.status_code == 200
         assert "Minute AI" in r.text
         assert "Generate" in r.text
+
+    def test_shows_idle_placeholder_when_no_job(self, client):
+        r = client.get("/")
+        assert "Processing logs will appear here" in r.text
+
+    def test_resumes_polling_a_running_job_on_refresh(self, client):
+        job = gui.Job("job-123")
+        job.log_lines.append("Transcribing...")
+        gui._current_job = job
+
+        r = client.get("/")
+        assert f"/jobs/{job.id}/status" in r.text
+        assert "Transcribing..." in r.text
+
+    def test_shows_results_of_a_finished_job_on_refresh(self, client):
+        job = gui.Job("job-456")
+        job.done = True
+        job.output_files = ["result.md"]
+        job.output_paths = {"result.md": Path("result.md")}
+        gui._current_job = job
+
+        r = client.get("/")
+        assert "generated" in r.text
+        assert f"/download/{job.id}/result.md" in r.text
 
 
 class TestBuildArgs:

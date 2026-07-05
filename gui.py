@@ -163,7 +163,9 @@ def _status_response(request: Request, job: Optional[Job], error: Optional[str] 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {**INDEX_CONTEXT, "job": None, "error": None})
+    with _lock:
+        job = _current_job
+    return templates.TemplateResponse(request, "index.html", {**INDEX_CONTEXT, "job": job, "error": None})
 
 
 @app.post("/run", response_class=HTMLResponse)
