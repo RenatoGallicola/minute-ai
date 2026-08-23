@@ -1,41 +1,18 @@
 """
 summarize.py
 ------------
-Generates a structured meeting summary using a local LLM via Ollama.
+Generates a structured summary using a local LLM via Ollama.
 """
 
 from src.chunking import split_blocks
-from src.languages import name_for
 from src.errors import OllamaError
+from src.languages import name_for
 from src.logger import get_logger
 from src.ollama_client import DEFAULT_TIMEOUT, call_ollama, check_ollama
+from src.prompts import DEFAULT_PRESET, fill, is_full_template, resolve_instructions
 
 
 DEFAULT_CHUNK_CHARS = 6000
-
-
-
-SECTIONS = """## Participants
-List all speakers. Use their real names if available, otherwise use the speaker labels. Include any inferred role or context.
-
-## Topics Discussed
-Main topics and themes covered during the meeting.
-
-## Decisions Made
-Concrete decisions that were agreed upon. If none, write "None".
-
-## Action Items
-Specific tasks to be done. For each item include:
-- What needs to be done
-- Who is responsible (if mentioned)
-- Deadline (if mentioned)
-If none, write "None".
-
-## Open Points
-Unresolved questions or topics to revisit in future meetings. If none, write "None".
-
-## Additional Notes
-Any other relevant information, context, or observations."""
 
 
 def resolve_output_language(transcript_language: str, summary_language: str) -> str:
@@ -53,6 +30,8 @@ def summarize_transcript(
     num_ctx: int = None,
     chunk_chars: int = DEFAULT_CHUNK_CHARS,
     timeout: int = DEFAULT_TIMEOUT,
+    preset: str = DEFAULT_PRESET,
+    custom_prompt: str = "",
 ) -> str:
     """
     Generates a structured summary of the transcript.
@@ -70,6 +49,8 @@ def summarize_transcript(
         num_ctx:             Context window to request from Ollama
         chunk_chars:         Maximum transcript characters sent in one request
         timeout:             Per-request timeout in seconds
+        preset:              Which summary shape to produce (see src/prompts.py)
+        custom_prompt:       Instructions replacing the preset, when given
 
     Returns:
         Structured summary in Markdown (empty string if it could not be produced)
@@ -86,23 +67,29 @@ def summarize_transcript(
         return ""
 
     output_lang = resolve_output_language(transcript_language, summary_language)
+    instructions = resolve_instructions(preset, custom_prompt)
     chunks = split_blocks(transcript, chunk_chars)
 
     try:
         if len(chunks) <= 1:
-            summary = call_ollama(host, model, _final_prompt(transcript, output_lang), num_ctx=num_ctx, timeout=timeout)
+            summary = call_ollama(
+                host, model, _final_prompt(transcript, output_lang, instructions),
+                num_ctx=num_ctx, timeout=timeout,
+            )
         else:
             log.info(f"      Transcript is long — summarizing in {len(chunks)} passes, then merging.")
             partials = []
             for index, chunk in enumerate(chunks, 1):
                 log.info(f"      Summarizing part {index}/{len(chunks)}...")
                 partials.append(call_ollama(
-                    host, model, _partial_prompt(chunk, output_lang, index, len(chunks)),
+                    host, model,
+                    _partial_prompt(chunk, output_lang, instructions, index, len(chunks)),
                     num_ctx=num_ctx, timeout=timeout,
                 ))
             log.info("      Merging partial summaries...")
             summary = call_ollama(
-                host, model, _merge_prompt(partials, output_lang), num_ctx=num_ctx, timeout=timeout
+                host, model, _merge_prompt(partials, output_lang, instructions),
+                num_ctx=num_ctx, timeout=timeout,
             )
     except OllamaError as exc:
         log.error(f"Summary failed ({exc}). Continuing without a summary.")
@@ -112,51 +99,59 @@ def summarize_transcript(
     return summary
 
 
-def _final_prompt(transcript: str, output_lang: str) -> str:
-    return f"""You are an expert meeting analyst. Analyze this meeting transcript and produce a structured summary.
+def _final_prompt(transcript: str, output_lang: str, instructions: str) -> str:
+    if is_full_template(instructions):
+        return fill(instructions, transcript, output_lang)
+
+    return f"""You are an expert analyst. Read this transcript and produce a structured summary.
 
 Write the summary in {output_lang}.
 
 Use Markdown formatting with ## headers for each section.
 
-Include these sections:
-{SECTIONS}
+Produce exactly this:
+{instructions}
 
-Be concise but thorough. Focus on actionable content.
+Be concise but thorough. Do not invent anything that is not in the transcript.
 
 TRANSCRIPT:
 {transcript}"""
 
 
-def _partial_prompt(chunk: str, output_lang: str, index: int, total: int) -> str:
-    return f"""You are an expert meeting analyst. This is part {index} of {total} of a longer meeting transcript.
+def _partial_prompt(chunk: str, output_lang: str, instructions: str, index: int, total: int) -> str:
+    """First map-reduce pass.
+
+    The extraction is driven by the same instructions as the final summary.
+    A fixed 'decisions and action items' pass would throw away exactly the
+    material a lecture or interview summary needs, before the merge ever sees it.
+    """
+    return f"""You are an expert analyst. This is part {index} of {total} of a longer transcript.
 
 Write in {output_lang}.
 
-Extract, as concise Markdown bullet points, only what this part actually contains:
-- Speakers who appear and any role you can infer
-- Topics discussed
-- Decisions made
-- Action items (task, owner, deadline)
-- Open questions
+Later on, the notes from every part will be combined into a summary shaped like this:
 
-Do not invent anything and do not add a conclusion — this is only one part of the meeting.
+{instructions}
+
+From THIS part only, extract as concise Markdown bullet points every detail that
+summary will need. Keep names, figures, quotes and commitments verbatim where they matter.
+Do not invent anything, and do not write a conclusion — this is only one part.
 
 TRANSCRIPT PART {index}/{total}:
 {chunk}"""
 
 
-def _merge_prompt(partials: list[str], output_lang: str) -> str:
+def _merge_prompt(partials: list[str], output_lang: str, instructions: str) -> str:
     joined = "\n\n".join(f"--- NOTES FROM PART {i} ---\n{p}" for i, p in enumerate(partials, 1))
-    return f"""You are an expert meeting analyst. Below are notes taken from consecutive parts of a single meeting.
+    return f"""You are an expert analyst. Below are notes taken from consecutive parts of one recording.
 
-Merge them into one structured summary of the whole meeting, written in {output_lang}.
-Remove duplicates, keep every distinct decision and action item, and do not invent anything.
+Merge them into a single summary of the whole recording, written in {output_lang}.
+Remove duplicates, keep every distinct point, and do not invent anything.
 
 Use Markdown formatting with ## headers for each section.
 
-Include these sections:
-{SECTIONS}
+Produce exactly this:
+{instructions}
 
 NOTES:
 {joined}"""

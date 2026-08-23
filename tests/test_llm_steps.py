@@ -112,3 +112,78 @@ class TestOutputLanguage:
 
     def test_missing_language_falls_back_to_english(self):
         assert summarize.resolve_output_language("", "same") == "English"
+
+
+class TestSummaryPresets:
+    """A preset must reach every stage of the summary, not just the last one."""
+
+    def _capture(self, monkeypatch):
+        calls = []
+
+        def capture(host, model, prompt, **kw):
+            calls.append(prompt)
+            return "merged" if "NOTES FROM PART" in prompt else "notes"
+
+        monkeypatch.setattr(summarize, "call_ollama", capture)
+        return calls
+
+    def _long_transcript(self):
+        return "\n\n".join(f"S{i}: " + "word " * 60 for i in range(10))
+
+    def test_preset_reaches_the_single_pass_prompt(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript("Alice: hi", "m", "http://h", "en", "same", preset="lecture")
+        assert "Key Concepts" in calls[0]
+        assert "Action Items" not in calls[0]
+
+    def test_preset_also_drives_the_chunk_passes(self, ollama_up, monkeypatch):
+        # Regression: the map stage used a hardcoded "decisions and action
+        # items" prompt, so a lecture summary lost its concepts before the
+        # merge ever saw them.
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript(
+            self._long_transcript(), "m", "http://h", "en", "same",
+            chunk_chars=500, preset="lecture",
+        )
+        chunk_prompts = [c for c in calls if "NOTES FROM PART" not in c]
+        assert len(chunk_prompts) > 1
+        assert all("Key Concepts" in c for c in chunk_prompts)
+
+    def test_preset_reaches_the_merge_prompt(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript(
+            self._long_transcript(), "m", "http://h", "en", "same",
+            chunk_chars=500, preset="interview",
+        )
+        assert "Notable Quotes" in calls[-1]
+
+    def test_custom_instructions_replace_the_preset(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript(
+            "Alice: hi", "m", "http://h", "en", "same",
+            preset="meeting", custom_prompt="## Risks Only",
+        )
+        assert "## Risks Only" in calls[0]
+        assert "Action Items" not in calls[0]
+
+    def test_a_template_with_transcript_takes_over_the_whole_prompt(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript(
+            "Alice: hi", "m", "http://h", "en", "same",
+            preset="custom", custom_prompt="ONLY THIS. Text: {transcript}",
+        )
+        assert calls[0] == "ONLY THIS. Text: Alice: hi"
+
+    def test_language_placeholder_is_filled_in_a_full_template(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript(
+            "Alice: hi", "m", "http://h", "it", "same",
+            preset="custom", custom_prompt="Write in {language}: {transcript}",
+        )
+        assert calls[0] == "Write in Italian: Alice: hi"
+
+    def test_default_preset_still_produces_the_meeting_sections(self, ollama_up, monkeypatch):
+        calls = self._capture(monkeypatch)
+        summarize.summarize_transcript("Alice: hi", "m", "http://h", "en", "same")
+        for section in ("Participants", "Decisions Made", "Action Items"):
+            assert section in calls[0]
