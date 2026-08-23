@@ -49,6 +49,12 @@ ignore = [
     "B008",  # FastAPI depends on calls in argument defaults
 ]
 
+[tool.ruff.lint.isort]
+# Declared explicitly rather than inferred from the filesystem: config.py is
+# git-ignored, so it exists locally but never on CI, and ruff would classify
+# `config` as first-party in one place and third-party in the other.
+known-first-party = ["config", "main", "gui", "src"]
+
 [tool.ruff.lint.per-file-ignores]
 # Tests reach into module internals on purpose, and dict(**kwargs) is the
 # readable form for fixtures whose next line is defaults.update(overrides).
