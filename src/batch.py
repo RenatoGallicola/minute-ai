@@ -5,22 +5,24 @@ Batch processing logic for multiple audio files.
 Handles sequential and parallel execution, and skip-if-already-processed logic.
 """
 
-import os
-import glob
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+from src.export import EXTENSIONS, formats_for
 from src.logger import get_logger
+from src.naming import meeting_name_from_path, output_stem_pattern
 
 
-SUPPORTED_EXTENSIONS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".wma", ".aac"}
+SUPPORTED_EXTENSIONS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".wma", ".aac", ".mp4", ".mkv", ".webm", ".opus"}
 
 
-def collect_audio_files(inputs: list[str]) -> list[str]:
+def collect_audio_files(inputs: list[str], recursive: bool = False) -> list[str]:
     """
     Collects all audio files from a list of paths (files or folders).
 
     Args:
-        inputs: List of file paths or folder paths
+        inputs:    List of file paths or folder paths
+        recursive: Also descend into sub-folders
 
     Returns:
         Deduplicated list of audio file paths
@@ -38,10 +40,13 @@ def collect_audio_files(inputs: list[str]) -> list[str]:
                 log.warning(f"Skipping unsupported file format: {input_path}")
 
         elif path.is_dir():
-            found = []
-            for ext in SUPPORTED_EXTENSIONS:
-                found.extend(glob.glob(str(path / f"*{ext}")))
-                found.extend(glob.glob(str(path / f"*{ext.upper()}")))
+            # iterdir/rglob rather than glob(): a folder whose name contains
+            # '[' or '*' would otherwise silently match nothing.
+            entries = path.rglob("*") if recursive else path.iterdir()
+            found = sorted(
+                str(f) for f in entries
+                if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
+            )
             if not found:
                 log.warning(f"No audio files found in folder: {input_path}")
             collected.extend(found)
@@ -53,7 +58,7 @@ def collect_audio_files(inputs: list[str]) -> list[str]:
     seen = set()
     result = []
     for f in collected:
-        resolved = str(Path(f).resolve())
+        resolved = str(Path(f).resolve()).lower()
         if resolved not in seen:
             seen.add(resolved)
             result.append(f)
@@ -66,35 +71,32 @@ def already_processed(audio_path: str, output_dir: str, fmt: str) -> bool:
     Checks if an audio file has already been processed by looking for
     an existing output file with a matching name.
 
+    The match is anchored on the exact '<timestamp>_<slug>' shape export.py
+    produces, so 'test.wav' is no longer considered done just because an
+    unrelated 'Test_Two' export happens to sit in the same folder.
+
     Args:
         audio_path: Path to the audio file
         output_dir: Output directory to check
-        fmt:        Expected format ('md', 'txt', 'all')
+        fmt:        Expected format ('md', 'txt', 'docx', 'pdf', 'srt', 'all')
 
     Returns:
         True if output already exists
     """
-    if not Path(output_dir).exists():
+    directory = Path(output_dir)
+    if not directory.exists():
         return False
 
-    stem = Path(audio_path).stem.replace(" ", "_").replace("-", "_").lower()
-    extensions = []
+    extensions = {EXTENSIONS[name] for name in formats_for(fmt) if name in EXTENSIONS}
+    if not extensions:
+        return False
 
-    if fmt in ("md", "all"):
-        extensions.append(".md")
-    if fmt in ("txt", "all"):
-        extensions.append(".txt")
-    if fmt in ("docx", "all"):
-        extensions.append(".docx")
-    if fmt in ("pdf", "all"):
-        extensions.append(".pdf")
-
-    for f in Path(output_dir).glob("*"):
-        file_stem = f.stem.lower()
-        if stem in file_stem and f.suffix in extensions:
-            return True
-
-    return False
+    pattern = output_stem_pattern(meeting_name_from_path(audio_path))
+    return any(
+        f.suffix.lower() in extensions and pattern.match(f.stem)
+        for f in directory.iterdir()
+        if f.is_file()
+    )
 
 
 def run_batch(
@@ -111,7 +113,7 @@ def run_batch(
 
     Args:
         audio_files: List of audio file paths
-        process_fn:  Function to call for each file: process_fn(audio_path) -> list[str]
+        process_fn:  Function to call for each file: process_fn(audio_path)
         parallel:    Whether to run in parallel
         force:       Whether to skip already-processed check
         output_dir:  Output directory
@@ -119,7 +121,8 @@ def run_batch(
         max_workers: Max parallel workers (default: 2)
 
     Returns:
-        Dict with 'success', 'skipped', 'failed' lists
+        Dict with 'success', 'skipped', 'failed' lists ('failed' holds
+        (path, message) pairs)
     """
     log = get_logger()
     results = {"success": [], "skipped": [], "failed": []}
@@ -138,10 +141,11 @@ def run_batch(
         return results
 
     total = len(to_process)
-    log.info(f"Processing {total} file(s) {'in parallel' if parallel else 'sequentially'}...")
+    workers = max(1, min(max_workers, total))
+    log.info(f"Processing {total} file(s) {f'in parallel ({workers} workers)' if parallel else 'sequentially'}...")
 
-    if parallel:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    if parallel and workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {executor.submit(process_fn, audio): audio for audio in to_process}
             for i, future in enumerate(as_completed(futures), 1):
                 audio = futures[future]
@@ -152,7 +156,7 @@ def run_batch(
                     results["success"].append(audio)
                 except Exception as e:
                     log.error(f"[{i}/{total}] Failed: {name} — {e}")
-                    results["failed"].append(audio)
+                    results["failed"].append((audio, str(e)))
     else:
         for i, audio in enumerate(to_process, 1):
             name = Path(audio).name
@@ -162,7 +166,7 @@ def run_batch(
                 results["success"].append(audio)
             except Exception as e:
                 log.error(f"Failed to process {name}: {e}")
-                results["failed"].append(audio)
+                results["failed"].append((audio, str(e)))
 
     return results
 
@@ -180,7 +184,8 @@ def print_batch_summary(results: dict):
 
     if results["failed"]:
         log.error("Failed files:")
-        for f in results["failed"]:
-            log.error(f"  - {Path(f).name}")
+        for entry in results["failed"]:
+            path, message = entry if isinstance(entry, tuple) else (entry, "")
+            log.error(f"  - {Path(path).name}{f' — {message}' if message else ''}")
 
     log.info("=" * 55)

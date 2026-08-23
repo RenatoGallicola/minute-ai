@@ -24,6 +24,22 @@ class TestCollectAudioFiles:
     def test_missing_path_is_skipped(self):
         assert collect_audio_files(["does/not/exist.wav"]) == []
 
+    def test_folder_with_glob_characters_in_its_name(self, tmp_path):
+        # Regression: folder scanning used glob(), so a directory called
+        # "notes [2026]" matched nothing at all.
+        folder = tmp_path / "notes [2026]"
+        folder.mkdir()
+        (folder / "a.wav").touch()
+        assert len(collect_audio_files([str(folder)])) == 1
+
+    def test_subfolders_only_with_recursive(self, tmp_path):
+        (tmp_path / "top.wav").touch()
+        nested = tmp_path / "week-1"
+        nested.mkdir()
+        (nested / "deep.wav").touch()
+        assert len(collect_audio_files([str(tmp_path)])) == 1
+        assert len(collect_audio_files([str(tmp_path)], recursive=True)) == 2
+
     def test_deduplicates_same_file(self, tmp_path):
         audio = tmp_path / "meeting.wav"
         audio.touch()
@@ -42,6 +58,20 @@ class TestAlreadyProcessed:
 
     def test_false_when_no_match(self, tmp_path):
         (tmp_path / "2026-01-01_10-00_Other.md").touch()
+        assert already_processed("meeting.wav", str(tmp_path), "md") is False
+
+    def test_longer_name_is_not_a_match(self, tmp_path):
+        # Regression: the check was a substring match, so "test.wav" counted as
+        # already processed the moment an unrelated "Test_Two" export existed.
+        (tmp_path / "2026-01-01_10-00_Test_Two.md").touch()
+        assert already_processed("test.wav", str(tmp_path), "md") is False
+
+    def test_numbered_duplicate_still_counts_as_processed(self, tmp_path):
+        (tmp_path / "2026-01-01_10-00_Meeting (2).md").touch()
+        assert already_processed("meeting.wav", str(tmp_path), "md") is True
+
+    def test_a_plain_file_without_a_timestamp_is_not_a_match(self, tmp_path):
+        (tmp_path / "Meeting.md").touch()
         assert already_processed("meeting.wav", str(tmp_path), "md") is False
 
     def test_docx_format_is_detected(self, tmp_path):
@@ -118,7 +148,7 @@ class TestRunBatch:
             fmt="md",
         )
 
-        assert results["failed"] == [str(tmp_path / "bad.wav")]
+        assert [path for path, _ in results["failed"]] == [str(tmp_path / "bad.wav")]
         assert results["success"] == [str(tmp_path / "good.wav")]
 
     def test_parallel_mode_processes_all_files(self, tmp_path):
