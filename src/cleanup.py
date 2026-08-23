@@ -19,10 +19,10 @@ Rules:
 - Fix grammar and punctuation
 - Do NOT change the meaning or content of what was said
 - Do NOT add information that wasn't there
-- Do NOT summarize, shorten or merge what was said — keep every sentence
+- Do NOT summarize, shorten or merge what was said; keep every sentence
 - Keep the exact speaker labels (e.g. SPEAKER_00:, Marco:) unchanged
 - A paragraph with no label continues the previous speaker: leave it unlabelled
-- Keep the paragraph breaks exactly where they are — do not merge or add any
+- Keep the paragraph breaks exactly where they are; do not merge or add any
 - If you're unsure about a word, keep the original
 - Respond ONLY with the cleaned transcript, no explanations{part_note}
 
@@ -46,7 +46,7 @@ def cleanup_transcript(
 
     Long transcripts are cleaned in chunks so nothing falls outside the model's
     context window. If Ollama is unavailable the original transcript is returned
-    unchanged — a missing cleanup step should never cost the user a transcript.
+    unchanged, because a missing cleanup step should never cost the user a transcript.
 
     Args:
         transcript:  Raw formatted transcript with speaker labels
@@ -74,7 +74,7 @@ def cleanup_transcript(
     chunks = split_blocks(transcript, chunk_chars)
     total = len(chunks)
     if total > 1:
-        log.info(f"      Transcript is long — cleaning in {total} chunks.")
+        log.info(f"      Transcript is long, cleaning in {total} chunks.")
 
     cleaned_parts = []
     for index, chunk in enumerate(chunks, 1):

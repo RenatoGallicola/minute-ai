@@ -154,7 +154,7 @@ def run_batch(
                     log.info(f"[{i}/{total}] Done: {name}")
                     results["success"].append(audio)
                 except Exception as e:
-                    log.error(f"[{i}/{total}] Failed: {name} — {e}")
+                    log.error(f"[{i}/{total}] Failed: {name}: {e}")
                     results["failed"].append((audio, str(e)))
     else:
         for i, audio in enumerate(to_process, 1):
@@ -185,6 +185,6 @@ def print_batch_summary(results: dict):
         log.error("Failed files:")
         for entry in results["failed"]:
             path, message = entry if isinstance(entry, tuple) else (entry, "")
-            log.error(f"  - {Path(path).name}{f' — {message}' if message else ''}")
+            log.error(f"  - {Path(path).name}{f': {message}' if message else ''}")
 
     log.info("=" * 55)

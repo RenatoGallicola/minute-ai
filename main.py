@@ -53,7 +53,7 @@ from src.prompts import CUSTOM_KEY, DEFAULT_PRESET, PRESET_KEYS
 from src.summarize import summarize_transcript
 from src.transcribe import build_speaker_map, format_transcript, transcribe
 
-# Values shipped in config.example.py — a config.py still carrying one of these
+# Values shipped in config.example.py. A config.py still carrying one of these
 # means the user never filled in their own token.
 HF_TOKEN_PLACEHOLDERS = {"", "hf_insert_here", "hf_xxxxxxxxxx", "hf_your_token_here", "none"}
 
@@ -147,10 +147,10 @@ def parse_args(argv=None):
         choices=MODE_CHOICES,
         help=(
             "Pipeline mode (default: full)\n"
-            "  full       — transcribe + cleanup + summary\n"
-            "  transcript — transcribe only\n"
-            "  clean      — transcribe + cleanup, no summary\n"
-            "  summary    — transcribe + summary, no cleanup"
+            "  full       transcribe + cleanup + summary\n"
+            "  transcript transcribe only\n"
+            "  clean      transcribe + cleanup, no summary\n"
+            "  summary    transcribe + summary, no cleanup"
         )
     )
 
@@ -171,11 +171,11 @@ def parse_args(argv=None):
         choices=PRESET_KEYS,
         help=(
             "What the summary should contain (default: meeting)\n"
-            "  meeting     — decisions and action items\n"
-            "  lecture     — concepts, definitions, examples\n"
-            "  interview   — positions, quotes, follow-ups\n"
-            "  one-on-one  — updates, blockers, next steps\n"
-            "  custom      — use --summary-prompt or --summary-prompt-file"
+            "  meeting     decisions and action items\n"
+            "  lecture     concepts, definitions, examples\n"
+            "  interview   positions, quotes, follow-ups\n"
+            "  one-on-one  updates, blockers, next steps\n"
+            "  custom      use --summary-prompt or --summary-prompt-file"
         )
     )
     parser.add_argument(
@@ -212,8 +212,8 @@ def parse_args(argv=None):
         choices=["full", "summary"],
         help=(
             "What to include in the exported file (default: full)\n"
-            "  full    — summary + full transcript\n"
-            "  summary — summary only"
+            "  full    summary + full transcript\n"
+            "  summary summary only"
         )
     )
 
@@ -336,7 +336,7 @@ def warn_if_model_needs_download(model: str):
     detail = f" (~{size / 1024:.1f} GB)" if size and size >= 1024 else (f" (~{size} MB)" if size else "")
     get_logger().warning(
         f"Whisper model '{model}' is not downloaded yet{detail}. "
-        f"It will be fetched on first use — this needs network access."
+        f"It will be fetched on first use, which needs network access."
     )
 
 
@@ -476,7 +476,7 @@ def main(argv=None) -> int:
         meeting_name = resolve_meeting_name(audio_path, args)
 
         log.info("=" * 55)
-        log.info(f"minute-ai — {meeting_name}")
+        log.info(f"minute-ai: {meeting_name}")
         log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content} | Diarize: {not args.no_diarize}")
         log.info("=" * 55)
 
@@ -495,7 +495,7 @@ def main(argv=None) -> int:
 
     # Batch mode
     log.info("=" * 55)
-    log.info("minute-ai — BATCH MODE")
+    log.info("minute-ai: BATCH MODE")
     log.info(f"Found {len(audio_files)} file(s)")
     log.info(f"Mode: {args.mode} | Format: {args.format} | Content: {args.export_content} | Diarize: {not args.no_diarize}")
     log.info(f"Parallel: {'yes' if args.parallel else 'no'}")

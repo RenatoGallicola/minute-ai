@@ -20,7 +20,7 @@ _ILLEGAL_RE = re.compile(f"[{re.escape(_ILLEGAL)}\x00-\x1f]")
 _SEPARATOR_RE = re.compile(r"[\s]+")
 _COLLAPSE_RE = re.compile(r"_{2,}")
 
-# Reserved DOS device names — a file called "con.md" cannot be created on Windows.
+# Reserved DOS device names: a file called "con.md" cannot be created on Windows.
 _RESERVED = {
     "con", "prn", "aux", "nul",
     *(f"com{i}" for i in range(1, 10)),

@@ -752,3 +752,40 @@ class TestResolveSpeakers:
                     data={"diarize": "true", "speakers": "custom", "speakers_custom": "32"})
         _wait_until_done()
         assert seen["speakers"] == 32
+
+
+class TestLogLinePathsAreOsIndependent:
+    """Regression: the helper used Path, so it stripped directories only on the
+    OS whose separator the log line happened to use. CI on Linux saw Windows
+    paths pass through untouched."""
+
+    WINDOWS = r"C:\Users\renat\AppData\Local\Temp\minute-ai-xyz\meeting.wav"
+    POSIX = "/tmp/minute-ai-xyz/meeting.wav"
+
+    def test_windows_path_in_transcribing_line(self):
+        out = gui._clean_log_line(f"[1/4] Transcribing audio: {self.WINDOWS}")
+        assert out == "[1/4] Transcribing audio: meeting.wav"
+
+    def test_posix_path_in_transcribing_line(self):
+        out = gui._clean_log_line(f"[1/4] Transcribing audio: {self.POSIX}")
+        assert out == "[1/4] Transcribing audio: meeting.wav"
+
+    def test_windows_path_in_exported_line(self):
+        assert gui._clean_log_line(rf"Exported: {self.WINDOWS}") == "Exported meeting.wav"
+
+    def test_posix_path_in_exported_line(self):
+        assert gui._clean_log_line(f"Exported: {self.POSIX}") == "Exported meeting.wav"
+
+    def test_a_bare_filename_is_left_alone(self):
+        assert gui._basename("meeting.wav") == "meeting.wav"
+
+    def test_a_trailing_separator_is_ignored(self):
+        assert gui._basename("/tmp/dir/") == "dir"
+
+    def test_a_root_path_falls_back_to_the_input(self):
+        # PureWindowsPath("/").name is empty; showing nothing would be worse
+        # than showing the original line.
+        assert gui._basename("/") == "/"
+
+    def test_forward_slashes_inside_a_windows_path(self):
+        assert gui._basename("C:/Temp/minute-ai/meeting.wav") == "meeting.wav"

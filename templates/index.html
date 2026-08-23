@@ -59,7 +59,7 @@
               <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/>
             </svg>
             <b>Drop your recordings here</b>
-            <span class="hint">or click to browse — several files run one after another</span>
+            <span class="hint">or click to browse. Several files run one after another</span>
             <span class="hint">{{ extension_list }}</span>
           </label>
           <input type="file" id="audio_files" name="audio_files" multiple class="sr-only"
@@ -92,7 +92,7 @@
           <label class="switch-row">
             <span class="switch-text">
               <b>Identify who is speaking</b>
-              <span>Diarization — needs a HuggingFace token</span>
+              <span>Diarization, needs a HuggingFace token</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="diarize" name="diarize" value="true" checked onchange="onDiarizeChange(this)">
@@ -157,7 +157,7 @@
                     onchange="onSummaryPresetChange(this)">
               {% for value, label, note in summary_presets %}
               <option value="{{ value }}" {% if value == default_summary_preset %}selected{% endif %}>
-                {{ label }} — {{ note }}
+                {{ label }} · {{ note }}
               </option>
               {% endfor %}
             </select>
@@ -184,7 +184,7 @@
             </select>
             <p class="hint">
               Each worker loads its own Whisper model, so more workers means proportionally more
-              memory — and 'Automatic' picks a smaller model to fit. Only applies to several files.
+              memory, and 'Automatic' picks a smaller model to fit. Only applies to several files.
             </p>
           </div>
         </div>
@@ -246,7 +246,7 @@
     function ollamaChip(health) {
       if (!health.ollama_online) {
         return chip("bad", "Ollama offline",
-          `Nothing answering at ${health.ollama_host}. Cleanup and summary will be skipped — you still get the transcript.`);
+          `Nothing answering at ${health.ollama_host}. Cleanup and summary will be skipped, but you still get the transcript.`);
       }
       if (!health.ollama_models.length) {
         return chip("warn", "Ollama · no models",
@@ -277,7 +277,7 @@
           ? chip("ok", "Speaker ID on",
                  "A HuggingFace token is set in config.py, so speakers can be told apart.\nIt is not verified until a run starts.")
           : chip("warn", "Speaker ID off",
-                 "HF_TOKEN is missing from config.py. Speakers cannot be told apart — the transcript will have no labels."),
+                 "HF_TOKEN is missing from config.py. Speakers cannot be told apart, so the transcript will have no labels."),
       ];
       if (!health.ffmpeg) {
         chips.push(chip("bad", "ffmpeg missing", "ffmpeg is not on PATH, so audio files cannot be decoded."));
@@ -327,7 +327,7 @@
       if (fallback) fallback.checked = true;
     }
 
-    /* The dropdowns list exactly what Ollama has — nothing else is runnable. */
+    /* The dropdowns list exactly what Ollama has; nothing else is runnable. */
     function fillModelPickers(health) {
       document.querySelectorAll("[data-model-field] select").forEach((select) => {
         const hint = document.querySelector(`[data-hint-for="${select.id}"]`);
@@ -338,7 +338,7 @@
           select.disabled = true;
           if (hint) {
             hint.textContent = health.ollama_online
-              ? "Ollama has no models installed — run: ollama pull llama3.2:3b"
+              ? "Ollama has no models installed. Run: ollama pull llama3.2:3b"
               : "Ollama is not reachable.";
           }
           return;
@@ -358,7 +358,7 @@
         if (hint) {
           hint.textContent = matched || !configured
             ? ""
-            : `config.py asks for “${configured}”, which is not installed — using ${preferred}.`;
+            : `config.py asks for “${configured}”, which is not installed, so using ${preferred}.`;
         }
       });
     }
@@ -394,7 +394,7 @@
       document.getElementById("summary-prompt-field").classList.toggle("hidden", !custom);
       document.getElementById("summary-preset-hint").textContent = custom
         ? ""
-        : el.options[el.selectedIndex].text.split("—").slice(1).join("—").trim();
+        : el.options[el.selectedIndex].text.split("·").slice(1).join("·").trim();
       if (custom) document.getElementById("summary_prompt").focus();
     }
 
@@ -485,9 +485,9 @@
         : `${chosen.length} file${plural} ready · one after another`;
     }
 
-    /* The transcript only reveals a mismatch after the run, so say it now —
-       but only when an exact speaker count was chosen, since on Auto nobody
-       knows how many there will be until diarization has run. */
+    /* The transcript only reveals a mismatch after the run, so say it now,
+       but only when an exact speaker count was chosen: on Auto nobody knows
+       how many there will be until diarization has run. */
     function checkSpeakerNames() {
       const notice = document.getElementById("speaker-count-notice");
       const names = document.getElementById("speaker_names").value
@@ -509,11 +509,11 @@
       if (names.length === count) {
         notice.classList.add("hidden");
       } else if (names.length > count) {
-        notice.textContent = `${names.length} names for ${count} speaker${count === 1 ? "" : "s"} — `
+        notice.textContent = `${names.length} names for ${count} speaker${count === 1 ? "" : "s"}. `
           + `the last ${names.length - count} will be ignored.`;
         notice.classList.remove("hidden");
       } else {
-        notice.textContent = `${names.length} name${names.length === 1 ? "" : "s"} for ${count} speakers — `
+        notice.textContent = `${names.length} name${names.length === 1 ? "" : "s"} for ${count} speakers. `
           + `the rest keep their SPEAKER_xx labels.`;
         notice.classList.remove("hidden");
       }

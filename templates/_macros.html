@@ -34,7 +34,7 @@
 
 
 {#
-  options: list of (value, title, note) — `note` may be empty.
+  options: list of (value, title, note), where `note` may be empty.
   `columns` switches between a wrapping row of pills and a 2-column grid.
 #}
 {% macro segmented(name, label, options, selected, onchange=None, style="grid", hint=None, needs_ollama=[]) %}
@@ -65,7 +65,7 @@
   Rendered as a plain text field, then upgraded to a <select> of installed
   models once /api/health answers. Doing it that way round means the page never
   blocks on a possibly-unreachable Ollama, and the field still works with no JS
-  or with Ollama down — the one case where the list genuinely cannot be known.
+  or with Ollama down, the one case where the list genuinely cannot be known.
 #}
 {% macro model_field(name, label, value) %}
 <div class="field" data-model-field>

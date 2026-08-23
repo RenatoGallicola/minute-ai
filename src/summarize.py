@@ -76,7 +76,7 @@ def summarize_transcript(
                 num_ctx=num_ctx, timeout=timeout,
             )
         else:
-            log.info(f"      Transcript is long — summarizing in {len(chunks)} passes, then merging.")
+            log.info(f"      Transcript is long, summarizing in {len(chunks)} passes, then merging.")
             partials = []
             for index, chunk in enumerate(chunks, 1):
                 log.info(f"      Summarizing part {index}/{len(chunks)}...")
@@ -134,7 +134,7 @@ Later on, the notes from every part will be combined into a summary shaped like 
 
 From THIS part only, extract as concise Markdown bullet points every detail that
 summary will need. Keep names, figures, quotes and commitments verbatim where they matter.
-Do not invent anything, and do not write a conclusion — this is only one part.
+Do not invent anything, and do not write a conclusion, because this is only one part.
 
 TRANSCRIPT PART {index}/{total}:
 {chunk}"""

@@ -4,7 +4,7 @@ chunking.py
 Splits a long transcript into LLM-sized pieces.
 
 A one-hour meeting easily runs past any local model's context window. Sending
-it in one shot does not error — Ollama simply truncates the prompt, so the
+it in one shot does not error. Ollama simply truncates the prompt, so the
 summary silently describes only part of the meeting. These helpers cut the
 transcript on speaker-block boundaries instead.
 """

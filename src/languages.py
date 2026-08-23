@@ -4,7 +4,7 @@ languages.py
 The languages Whisper can transcribe, shared by the CLI and the GUI.
 
 The CLI has always accepted any Whisper language code, while the GUI offered a
-short hand-picked list — so a Turkish recording could be transcribed from the
+short hand-picked list, so a Turkish recording could be transcribed from the
 terminal but not from the browser. Both now read from here.
 """
 

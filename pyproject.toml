@@ -1,7 +1,7 @@
 [project]
 name = "minute-ai"
 version = "1.0.0"
-description = "Local transcription, cleanup and summarization of meeting audio — nothing leaves your machine"
+description = "Local transcription, cleanup and summarization of meeting audio. Nothing leaves your machine"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10,<3.13"

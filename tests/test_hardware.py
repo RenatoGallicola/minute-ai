@@ -61,7 +61,7 @@ class TestPreferInstalled:
         assert hardware._prefer_installed("small", ["small", "medium"]) == "small"
 
     def test_never_exceeds_the_hardware_budget(self):
-        # Only 'base' fits, and nothing that small is installed — download it
+        # Only 'base' fits, and nothing that small is installed, so download it
         # rather than running a model the machine cannot hold.
         assert hardware._prefer_installed("base", ["small", "medium"]) == "base"
 

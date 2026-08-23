@@ -16,7 +16,7 @@ class TestSlugify:
 
     def test_windows_illegal_characters_are_removed(self):
         # Regression: a ':' survived into the file name, and on NTFS open()
-        # then wrote to an alternate data stream — the .md never appeared in
+        # then wrote to an alternate data stream, so the .md never appeared in
         # Explorer and the content was effectively lost.
         assert ":" not in slugify("Q3: Kickoff")
         assert slugify('a<b>c:d"e/f\\g|h?i*j') == "abcdefghij"

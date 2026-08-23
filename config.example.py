@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────
-# minute-ai — Configuration (EXAMPLE)
+# minute-ai Configuration (EXAMPLE)
 # ─────────────────────────────────────────────
 # Copy this file to config.py and insert your tokens.
 # NEVER commit config.py to Git if it contains real tokens.

@@ -70,7 +70,7 @@ def export(
     if not include_summary and not include_transcript:
         log.warning(
             "Nothing to export: 'summary only' was requested but no summary was produced. "
-            "Writing the header only — check that Ollama is running."
+            "Writing the header only. Check that Ollama is running."
         )
 
     meta = _Meta(meeting_name, audio_stem, language, duration_seconds)
@@ -98,7 +98,7 @@ def export(
         except OSError as exc:
             raise ExportError(f"Cannot write '{path}': {exc}") from exc
 
-        if written is False:  # optional dependency missing — already logged
+        if written is False:  # optional dependency missing, already logged
             continue
         created_files.append(path)
         log.info(f"      Exported: {path}")

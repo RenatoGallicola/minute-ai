@@ -87,7 +87,7 @@
       <b>{{ job.errors|length }} file{{ "s" if job.errors|length != 1 }} could not be processed</b>
       <ul>
         {% for name, message in job.errors %}
-        <li>{{ name }} — {{ message }}</li>
+        <li>{{ name }}: {{ message }}</li>
         {% endfor %}
       </ul>
     </span>

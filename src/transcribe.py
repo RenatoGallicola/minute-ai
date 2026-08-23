@@ -35,7 +35,7 @@ def resolve_compute_type(configured: str, device: str) -> str:
     if value in ("", "auto"):
         return "float16" if device == "cuda" else "int8"
     if value == "float16" and device != "cuda":
-        get_logger().warning("compute_type 'float16' needs a GPU — falling back to 'int8' on CPU.")
+        get_logger().warning("compute_type 'float16' needs a GPU, falling back to 'int8' on CPU.")
         return "int8"
     return value
 
@@ -111,7 +111,7 @@ def transcribe(
         log.warning("      No speech detected in this file.")
         return TranscriptionResult([], detected_language, duration, diarized=False)
 
-    # Temporal alignment — best-effort: whisperX ships no alignment model for
+    # Temporal alignment is best-effort: whisperX ships no alignment model for
     # every language, and a missing one must not cost us the transcript.
     log.info("      Aligning timestamps...")
     try:
@@ -127,7 +127,7 @@ def transcribe(
     if diarize and num_speakers == 1:
         # Nothing to tell apart. Running pyannote anyway costs minutes and can
         # only ever return the answer we were already given.
-        log.info("      One speaker expected — skipping diarization.")
+        log.info("      One speaker expected, skipping diarization.")
         for seg in result["segments"]:
             seg["speaker"] = SINGLE_SPEAKER_LABEL
         diarized = True
@@ -146,7 +146,7 @@ def transcribe(
             # Usually a bad or ungated HF token. Falling back to a speaker-less
             # transcript beats throwing away a transcription that already ran.
             log.error(
-                f"      Diarization failed ({exc}). Continuing without speaker labels — "
+                f"      Diarization failed ({exc}). Continuing without speaker labels. "
                 f"check that HF_TOKEN is valid and that you accepted the pyannote model terms."
             )
     else:
@@ -154,7 +154,7 @@ def transcribe(
 
     segments = result["segments"]
     speakers = sorted({seg["speaker"] for seg in segments if seg.get("speaker")}) if diarized else []
-    log.info(f"      Done — {len(segments)} segments" + (f", {len(speakers)} speaker(s)" if speakers else ""))
+    log.info(f"      Done: {len(segments)} segments" + (f", {len(speakers)} speaker(s)" if speakers else ""))
     return TranscriptionResult(segments, detected_language, duration, diarized, speakers)
 
 
@@ -251,7 +251,7 @@ def build_speaker_map(segments: list[dict], speaker_names_str: str) -> dict:
     """
     Builds a {SPEAKER_00: "Name"} dictionary from a comma-separated name string.
 
-    Names are matched in order of first appearance in the recording — the only
+    Names are matched in order of first appearance in the recording, the only
     order a user can know without opening the output first. (This used to sort
     the labels instead, which silently swapped names whenever pyannote did not
     hand SPEAKER_00 to whoever spoke first.)
@@ -279,12 +279,12 @@ def build_speaker_map(segments: list[dict], speaker_names_str: str) -> dict:
     # export and spotting a stray SPEAKER_02 or a name that never appears.
     if len(names) > len(seen):
         log.warning(
-            f"{len(names)} speaker names given but only {len(seen)} speaker(s) were detected — "
+            f"{len(names)} speaker names given but only {len(seen)} speaker(s) were detected. "
             f"ignoring: {', '.join(names[len(seen):])}"
         )
     elif len(names) < len(seen):
         log.warning(
-            f"Only {len(names)} speaker name(s) given for {len(seen)} detected speaker(s) — "
+            f"Only {len(names)} speaker name(s) given for {len(seen)} detected speaker(s). "
             f"the rest keep their {seen[len(names)]}-style labels."
         )
 

@@ -132,7 +132,7 @@ class TestResolveMeetingName:
 class TestValidateArgsExtra:
     def test_example_placeholder_token_is_caught(self, monkeypatch):
         # Regression: the check only knew "hf_XXXXXXXXXX", while
-        # config.example.py shipped "hf_INSERT_HERE" — so a fresh copy of the
+        # config.example.py shipped "hf_INSERT_HERE", so a fresh copy of the
         # example passed validation and failed deep inside pyannote instead.
         monkeypatch.setattr(main.config, "HF_TOKEN", "hf_INSERT_HERE")
         with pytest.raises(SystemExit):

@@ -1,6 +1,6 @@
 # Example output
 
-[`artemis-iii-training.md`](artemis-iii-training.md) is a real, unedited run of minute-ai — the
+[`artemis-iii-training.md`](artemis-iii-training.md) is a real, unedited run of minute-ai: the
 whole file exactly as the pipeline wrote it, summary and transcript included. Nothing was
 hand-corrected, so it also shows the rough edges you should expect from a 3B model on CPU.
 
@@ -12,7 +12,7 @@ hand-corrected, so it also shows the rough edges you should expect from a 3B mod
 | Segment | 4 minutes, starting at 5:00 |
 | Rights | Produced by NASA. NASA media is not subject to copyright in the United States and may be reused, including for derivative works such as transcripts. |
 
-The audio itself is not committed — the repository stays free of large binaries, and `inputs/` is
+The audio itself is not committed: the repository stays free of large binaries, and `inputs/` is
 git-ignored. Reproduce it with:
 
 ```bash
@@ -30,10 +30,10 @@ python main.py inputs/nasa-podcast-demo.wav \
 
 ## What it demonstrates
 
-- **Speaker diarization** — two speakers, correctly separated and kept apart through the transcript.
-- **The `interview` preset** — the summary is shaped as *Participants / Topics Covered / Key Points /
+- **Speaker diarization**: two speakers, correctly separated and kept apart through the transcript.
+- **The `interview` preset**: the summary is shaped as *Participants / Topics Covered / Key Points /
   Notable Quotes / Follow-ups* rather than the meeting default of decisions and action items.
-- **Cleanup** — the transcript is the ASR output after the LLM pass, with punctuation and obvious
+- **Cleanup**: the transcript is the ASR output after the LLM pass, with punctuation and obvious
   mishearings repaired.
 
 ## Honest notes

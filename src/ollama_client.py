@@ -17,7 +17,7 @@ def probe(host: str, timeout: int = PROBE_TIMEOUT) -> tuple[bool, list[str]]:
     """Asks the Ollama server what it has.
 
     Returns (reachable, models). The two are reported separately because a
-    freshly installed Ollama is up but has no models yet — calling that
+    freshly installed Ollama is up but has no models yet, and calling that
     "offline" would send the user to check the service instead of pulling a
     model.
     """
@@ -47,7 +47,7 @@ def model_available(installed: list[str], model: str) -> bool:
 
     Ollama reports fully qualified tags ('llama3.1:latest'), while users
     normally type the bare name ('llama3.1'). Match on the whole tag or on the
-    part before ':' — never on a loose substring, which used to let a typo like
+    part before ':', never on a loose substring, which used to let a typo like
     'llama' pass and then fail at generation time.
     """
     wanted = (model or "").strip().lower()

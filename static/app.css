@@ -1,5 +1,5 @@
 /* ===========================================================================
-   minute-ai — design system
+   minute-ai design system
    ---------------------------------------------------------------------------
    Hand-written, no build step. Everything is driven by the tokens in :root,
    so re-theming the whole app means editing one block.
@@ -682,7 +682,15 @@ details.card[open] summary { border-bottom: 1px solid var(--border); }
 .log::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 .log::-webkit-scrollbar-track { background: transparent; }
 
-.run-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 18px; }
+/* Margins on both sides, not padding: they collapse with whatever sits above
+   and below, so the gap is the same 18px whether the neighbour is the progress
+   bar, the log, or a result card. Padding would stack instead of collapsing. */
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 20px;
+}
 
 .log-details { margin: 14px 20px 18px; }
 .log-details summary {

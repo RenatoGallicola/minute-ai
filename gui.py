@@ -3,9 +3,9 @@
 gui.py
 ------
 Local web GUI for minute-ai: FastAPI + Jinja2 + htmx, styled with a hand-written
-CSS design system (static/app.css) — no Node, no build step.
+CSS design system (static/app.css). No Node, no build step.
 
-Wraps the same pipeline used by main.py (main.process_single / main.resolve_model) —
+Wraps the same pipeline used by main.py (main.process_single / main.resolve_model);
 no pipeline logic is duplicated here.
 
 Run with:
@@ -24,7 +24,7 @@ import uuid
 import zipfile
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -58,12 +58,12 @@ setup_logger()
 
 LANGUAGES = languages.audio_options()
 MODELS = [
-    ("auto", "Automatic — picked from your GPU/RAM"),
-    ("tiny", "Tiny — fastest, roughest"),
-    ("base", "Base — quick draft quality"),
-    ("small", "Small — balanced"),
-    ("medium", "Medium — good accuracy"),
-    ("large-v3", "Large v3 — most accurate, slowest"),
+    ("auto", "Automatic (picked from your GPU/RAM)"),
+    ("tiny", "Tiny (fastest, roughest)"),
+    ("base", "Base (quick draft quality)"),
+    ("small", "Small (balanced)"),
+    ("medium", "Medium (good accuracy)"),
+    ("large-v3", "Large v3 (most accurate, slowest)"),
 ]
 # The list stops at a comfortable 10; anything beyond that is typed in.
 LISTED_SPEAKERS = 10
@@ -230,6 +230,16 @@ _TRANSCRIBING_LINE = re.compile(r"^(\[1/4\] Transcribing audio:)\s*(.+)$")
 _STAGE_LINE = re.compile(r"^\[(\d)/4\]")
 
 
+def _basename(path: str) -> str:
+    """Last segment of a path, whichever separator it uses.
+
+    PureWindowsPath understands both '/' and '\\', while PurePosixPath treats a
+    backslash as an ordinary character. Using the plain Path here made this
+    display helper behave differently depending on the host OS.
+    """
+    return PureWindowsPath(path).name or path
+
+
 def _clean_log_line(message: str) -> str | None:
     """Trims and simplifies a raw pipeline log line for display in the web UI.
 
@@ -241,10 +251,10 @@ def _clean_log_line(message: str) -> str | None:
         return None
     exported = _EXPORTED_LINE.match(text)
     if exported:
-        return f"Exported {Path(exported.group(1)).name}"
+        return f"Exported {_basename(exported.group(1))}"
     transcribing = _TRANSCRIBING_LINE.match(text)
     if transcribing:
-        return f"{transcribing.group(1)} {Path(transcribing.group(2)).name}"
+        return f"{transcribing.group(1)} {_basename(transcribing.group(2))}"
     return text
 
 
@@ -366,7 +376,7 @@ def _validate_submission(diarize: bool, mode: str, export_content: str, fmt: str
             "Add it, or turn off “Identify speakers”."
         )
     if export_content == "summary" and mode in pipeline.MODES_WITHOUT_SUMMARY:
-        return "“Summary only” needs a mode that produces a summary — pick Full or Summary."
+        return "“Summary only” needs a mode that produces a summary. Pick Full or Summary."
     if fmt == "srt" and export_content == "summary":
         return "Subtitles only carry the timestamped transcript, so they cannot hold a summary alone."
     if speakers != "auto" and (not speakers.isdigit() or int(speakers) < 1):
@@ -651,7 +661,7 @@ def _record_failure(job: Job, entry: FileResult, message: str):
 @app.get("/jobs/{job_id}/status", response_class=HTMLResponse)
 def job_status(request: Request, job_id: str):
     job = _get_job(job_id)
-    error = None if job else "That run is no longer available — start a new one."
+    error = None if job else "That run is no longer available. Start a new one."
     return _status_response(request, job, error)
 
 
@@ -662,7 +672,7 @@ def cancel_job(request: Request, job_id: str):
         return _status_response(request, None, "That run is no longer available.")
     if not job.done:
         job.cancel_requested.set()
-        job.add_log("⚠ Stop requested — finishing the current file, then stopping.", "WARNING")
+        job.add_log("⚠ Stop requested. Finishing the current file, then stopping.", "WARNING")
     return _status_response(request, job, None)
 
 

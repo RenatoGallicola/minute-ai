@@ -80,7 +80,7 @@ Who took part, and their role in the conversation (interviewer, interviewee, and
 The subjects discussed, in the order they came up.
 
 ## Key Points
-The substance of what was said on each topic — positions, claims, and the reasoning behind them.
+The substance of what was said on each topic: positions, claims, and the reasoning behind them.
 
 ## Notable Quotes
 Direct quotes worth keeping, attributed to the speaker. Quote verbatim; do not paraphrase.

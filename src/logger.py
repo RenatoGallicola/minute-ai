@@ -56,14 +56,14 @@ def setup_logger(log_dir: str = LOG_DIR) -> logging.Logger:
     log_path = os.path.join(log_dir, LOG_FILE)
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
 
-    # File handler — full detail, rotates so the log cannot grow without bound
+    # File handler: full detail, rotates so the log cannot grow without bound
     file_handler = RotatingFileHandler(
         log_path, maxBytes=MAX_LOG_BYTES, backupCount=LOG_BACKUP_COUNT, encoding="utf-8"
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
-    # Terminal handler — same detail
+    # Terminal handler: same detail
     stream_handler = logging.StreamHandler(_utf8_stream(sys.stdout))
     stream_handler.setLevel(logging.DEBUG)
     stream_handler.setFormatter(formatter)

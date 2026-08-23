@@ -25,7 +25,7 @@ MODEL_DOWNLOAD_MB = {
 }
 
 
-# (min_available_gb, model) — checked from largest requirement to smallest.
+# (min_available_gb, model), checked from largest requirement to smallest.
 # Rough RAM headroom needed to comfortably load + run each whisper model on CPU,
 # leaving room for the OS, Ollama, and other apps running alongside it.
 MODEL_RAM_THRESHOLDS = [
@@ -158,7 +158,7 @@ def auto_select_model(parallel_workers: int = 1, installed: list[str] = None) ->
             f"'{fits}' would also fit but is not downloaded yet."
         )
     else:
-        note = "" if not on_disk or model in on_disk else " — it will be downloaded on first use"
+        note = "" if not on_disk or model in on_disk else ", which will be downloaded on first use"
         log.info(f"Auto-selected Whisper model '{model}' ({budget}){note}")
     return model
 

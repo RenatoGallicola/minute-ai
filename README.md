@@ -2,24 +2,24 @@
 
 <img src="docs/images/logo.png" alt="" width="84">
 
-# minute-ai
+# Minute AI
 
-**Turn meeting recordings into structured notes — entirely on your own machine.**
+**Turn meeting recordings into structured notes, entirely on your own machine.**
 
 [![CI](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-328-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-336-brightgreen.svg)](tests/)
 
 </div>
 
-minute-ai transcribes a recording, works out who said what, cleans up the speech-to-text output and
-writes a structured summary — decisions, action items, open questions. It runs Whisper and a local
+Minute AI transcribes a recording, works out who said what, cleans up the speech-to-text output and
+writes a structured summary: decisions, action items, open questions. It runs Whisper and a local
 LLM on your own hardware, so no audio and no transcript ever leaves the machine. Use it from the
 command line or from a local web app.
 
 <div align="center">
-  <img src="docs/images/results-dark.png" alt="minute-ai web interface showing a finished run with the summary, transcript and downloadable files" width="900">
+  <img src="docs/images/results-dark.png" alt="Minute AI web interface showing a finished run with the summary, transcript and downloadable files" width="900">
 </div>
 
 ---
@@ -27,25 +27,25 @@ command line or from a local web app.
 ## Why this exists
 
 Meeting-notes tools are almost all cloud services: you upload the recording, and someone else's
-servers hold the audio and the transcript. That is a non-starter for anything confidential — a
+servers hold the audio and the transcript. That is a non-starter for anything confidential: a
 performance review, a legal call, an unannounced product decision, patient or client information.
 
-minute-ai does the same job locally. The trade-off is honest: it is slower than a GPU datacentre,
+Minute AI does the same job locally. The trade-off is honest: it is slower than a GPU datacentre,
 and a 3B local model does not write as well as a frontier one. In exchange, the recording never
 leaves your disk, there is no account, no subscription and no upload limit.
 
 ## Features
 
-- **Transcription with speaker labels** — [whisperX](https://github.com/m-bain/whisperX) for the
+- **Transcription with speaker labels**: [whisperX](https://github.com/m-bain/whisperX) for the
   transcript and word-level timestamps, [pyannote](https://github.com/pyannote/pyannote-audio) to
   tell voices apart. Name them yourself with `--speaker-names "Marco,Sara"`.
-- **Cleanup pass** — a local LLM repairs mishearings and punctuation without rewriting what was said.
-- **Summaries shaped for the recording** — presets for meetings, lectures, interviews and
+- **Cleanup pass**: a local LLM repairs mishearings and punctuation without rewriting what was said.
+- **Summaries shaped for the recording**: presets for meetings, lectures, interviews and
   one-on-ones, or your own instructions. A lecture summary should not have an "Action Items" section.
-- **Five export formats** — Markdown, plain text, Word, PDF, and SRT subtitles.
+- **Five export formats**: Markdown, plain text, Word, PDF, and SRT subtitles.
 - **100 languages**, auto-detected, with the summary in the same language or any other.
 - **Batch processing**, sequentially or several files at once.
-- **A local web app** as well as a CLI — same pipeline, same options, no cloud in either.
+- **A local web app** as well as a CLI, with the same pipeline and the same options behind both.
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ ollama pull llama3.2:3b
 ```
 
 Open `config.py` and paste a [HuggingFace token](https://huggingface.co/settings/tokens) into
-`HF_TOKEN` — it is needed to download the diarization model, and you must accept the terms of
+`HF_TOKEN`. It is needed to download the diarization model, and you must accept the terms of
 `pyannote/speaker-diarization-community-1`. Skip it entirely if you always run with `--no-diarize`.
 
 Then:
@@ -88,7 +88,7 @@ First run downloads the Whisper and diarization models (~2 GB) into your Hugging
 ## Example output
 
 [`examples/artemis-iii-training.md`](examples/artemis-iii-training.md) is a complete, unedited run on
-four minutes of a public-domain NASA podcast — two speakers, summarised with the `interview` preset.
+four minutes of a public-domain NASA podcast: two speakers, summarised with the `interview` preset.
 The [notes alongside it](examples/README.md) give the exact command and are frank about where a small
 local model still shows its limits.
 
@@ -103,8 +103,8 @@ audio ──► whisperX ──► pyannote ──► Ollama ──► Ollama �
 Four decisions worth calling out, because each one came from something that went wrong:
 
 **Long recordings are chunked, not truncated.** Ollama silently cuts any prompt longer than its
-context window — no error, no warning. A one-hour meeting would have been summarised from whatever
-fragment happened to fit. minute-ai requests the context window explicitly and splits long
+context window, with no error and no warning. A one-hour meeting would have been summarised from whatever
+fragment happened to fit. Minute AI requests the context window explicitly and splits long
 transcripts on speaker boundaries, summarising chunk by chunk and then merging. The preset drives
 every pass, not just the last one, so a lecture's key concepts are not discarded during the map stage.
 
@@ -119,13 +119,13 @@ is allowed to throw it away.
 | One file fails in a batch | The rest still run; the closing summary says what failed and why |
 
 **`--model auto` prefers a model you already have.** Choosing purely on available RAM would pick
-`large-v3` on a big machine and quietly start a 3 GB download — exactly what fails on a locked-down
+`large-v3` on a big machine and quietly start a 3 GB download, which is exactly what fails on a locked-down
 network. Among the models that fit the hardware, one already on disk wins.
 
 **The CLI and the GUI cannot drift apart.** They share the pipeline, and
 [`tests/test_cli_gui_parity.py`](tests/test_cli_gui_parity.py) compares their options, accepted
 values and validation rules automatically. Adding a flag to one side fails the suite until the other
-side has it — or until the allowlist explains why it should not.
+side has it, or until the allowlist explains why it should not.
 
 ## The web app
 
@@ -134,7 +134,7 @@ python gui.py     # http://127.0.0.1:7860
 ```
 
 FastAPI + Jinja2 + [htmx](https://htmx.org), styled with a hand-written CSS design system.
-**No Node, no build step** — edit `static/app.css` or a template and reload. (This replaced a
+**No Node, no build step**: edit `static/app.css` or a template and reload. (This replaced a
 precompiled Tailwind build whose stylesheet silently lacked any class added after the last run.)
 
 <div align="center">
@@ -143,7 +143,7 @@ precompiled Tailwind build whose stylesheet silently lacked any class added afte
 
 The interface reacts to what your machine can actually do. `/api/health` is fetched after first
 paint, so the page never blocks on an unreachable Ollama, and reports whether Ollama is *reachable*
-separately from *usable* — a fresh install is the first without being the second. When the LLM is
+separately from *usable*. A fresh install is the first without being the second. When the LLM is
 unavailable the modes that need it are disabled outright rather than failing later, Whisper models
 are marked *ready* or with their download size, and the model picker offers only what Ollama has
 installed.
@@ -185,9 +185,9 @@ Who committed to what."
 | `--mode` | Transcribe | Cleanup | Summary |
 |---|:---:|:---:|:---:|
 | `full` *(default)* | ✓ | ✓ | ✓ |
-| `clean` | ✓ | ✓ | — |
-| `summary` | ✓ | — | ✓ |
-| `transcript` | ✓ | — | — |
+| `clean` | ✓ | ✓ | - |
+| `summary` | ✓ | - | ✓ |
+| `transcript` | ✓ | - | - |
 
 ### Summary presets
 
@@ -199,7 +199,7 @@ Who committed to what."
 | `one-on-one` | Updates · Blockers · Feedback · Agreed Next Steps |
 | `custom` | Whatever you write in `--summary-prompt` |
 
-A custom prompt normally describes the sections you want, and minute-ai wraps it with the transcript
+A custom prompt normally describes the sections you want, and Minute AI wraps it with the transcript
 and language. Write `{transcript}` anywhere in it to take over the whole prompt instead.
 
 <details>
@@ -207,26 +207,26 @@ and language. Write `{transcript}` anywhere in it to take over the whole prompt 
 
 | Option | Default | Description |
 |---|---|---|
-| `--recursive` / `-r` | — | When a folder is given, also look inside sub-folders |
+| `--recursive` / `-r` | - | When a folder is given, also look inside sub-folders |
 | `--language` / `-l` | `auto` | `auto` or any of the 100 codes Whisper supports |
 | `--speakers` / `-s` | `auto` | Number of speakers, or `auto`. `1` skips diarization entirely |
-| `--speaker-names` | — | `"Marco,Sara"`, in order of first appearance (single file, needs diarization) |
+| `--speaker-names` | - | `"Marco,Sara"`, in order of first appearance (single file, needs diarization) |
 | `--meeting-name` / `-n` | filename | Title and output file name (single file only) |
 | `--model` / `-m` | `auto` | `auto` `tiny` `base` `small` `medium` `large-v3` |
-| `--no-diarize` | — | Skip speaker identification |
+| `--no-diarize` | - | Skip speaker identification |
 | `--mode` | `full` | `full` `transcript` `clean` `summary` |
 | `--cleanup-model` | `llama3.1` | Ollama model for the cleanup pass |
 | `--summary-model` | `llama3.1` | Ollama model for the summary |
 | `--summary-preset` | `meeting` | `meeting` `lecture` `interview` `one-on-one` `custom` |
-| `--summary-prompt` | — | Instructions replacing the preset |
-| `--summary-prompt-file` | — | Read those instructions from a file |
+| `--summary-prompt` | - | Instructions replacing the preset |
+| `--summary-prompt-file` | - | Read those instructions from a file |
 | `--summary-language` | `same` | `same`, or any supported language code |
 | `--output-dir` / `-o` | `outputs/` | Where to write |
 | `--format` / `-f` | `md` | `md` `txt` `docx` `pdf` `srt` `all` |
 | `--export-content` | `full` | `full` (summary + transcript) or `summary` |
-| `--parallel` | — | Process several files concurrently |
+| `--parallel` | - | Process several files concurrently |
 | `--parallel-workers` | `2` | How many at a time |
-| `--force` | — | Reprocess files that already have output |
+| `--force` | - | Reprocess files that already have output |
 
 `--no-diarize` is incompatible with `--speakers` and `--speaker-names`. `--export-content summary`
 needs a mode that produces one. `--format srt` carries the timestamped transcript only.
@@ -259,13 +259,13 @@ Among the models that fit, one already downloaded always wins. `DEFAULT_COMPUTE_
 
 | Key | Default | Why it matters |
 |---|---|---|
-| `HF_TOKEN` | — | Required for diarization only |
+| `HF_TOKEN` | - | Required for diarization only |
 | `OLLAMA_NUM_CTX` | `8192` | Ollama's own default is small and truncates long prompts silently |
 | `LLM_CHUNK_CHARS` | `6000` | Transcript characters per LLM request |
 | `OLLAMA_TIMEOUT` | `600` | Seconds to wait for one generation |
 | `DEFAULT_COMPUTE_TYPE` | `auto` | `float16` on GPU, `int8` on CPU |
 
-Raise `OLLAMA_NUM_CTX` and `LLM_CHUNK_CHARS` together if you have memory to spare — fewer, larger
+Raise `OLLAMA_NUM_CTX` and `LLM_CHUNK_CHARS` together if you have memory to spare. Fewer, larger
 passes usually give a better summary.
 
 </details>
@@ -279,7 +279,7 @@ equivalent, on purpose:
 
 | Option | Why |
 |---|---|
-| `--recursive` | The GUI takes browser uploads, not server paths — there is no folder to descend into |
+| `--recursive` | The GUI takes browser uploads, not server paths, so there is no folder to descend into |
 | `--force` | Uploading a file *is* the request to process it; the GUI always behaves as if it were set |
 | `--output-dir` | Writing to an arbitrary server path from a web form is a footgun; the GUI hands files back as downloads |
 
@@ -306,7 +306,7 @@ minute-ai/
 │   └── logger.py         # Centralised logging
 ├── templates/            # Jinja2 templates
 ├── static/               # app.css, vendored htmx, favicon
-├── tests/                # 328 unit and integration tests
+├── tests/                # 336 unit and integration tests
 ├── examples/             # A real, unedited run
 ├── main.py               # CLI entry point
 ├── gui.py                # FastAPI web app
@@ -317,7 +317,7 @@ minute-ai/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                  # 328 tests, ~5 seconds
+pytest                  # 336 tests, ~5 seconds
 ruff check .
 ```
 
@@ -331,9 +331,9 @@ Dependencies use [pip-tools](https://github.com/jazzband/pip-tools): edit `requi
 
 ## Known warnings, safe to ignore
 
-- **torchcodec not installed** — whisperX falls back to ffmpeg, which works fine.
-- **Lightning checkpoint upgrade** — cosmetic, from pyannote.
-- **Symlink warning on Windows** — the HuggingFace cache works in degraded mode; enable Developer
+- **torchcodec not installed**: whisperX falls back to ffmpeg, which works fine.
+- **Lightning checkpoint upgrade**: cosmetic, from pyannote.
+- **Symlink warning on Windows**: the HuggingFace cache works in degraded mode; enable Developer
   Mode to silence it.
 
 ## License
