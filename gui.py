@@ -43,6 +43,7 @@ from src.logger import get_logger, setup_logger
 from src.markdown_lite import render as render_markdown
 from src.markdown_lite import render_transcript
 from src.ollama_client import model_available
+from src import prompts
 from src.ollama_client import probe as probe_ollama
 from src.transcribe import format_duration
 
@@ -89,6 +90,7 @@ EXPORT_CONTENTS = [
     ("summary", "Summary only", ""),
 ]
 SUMMARY_LANGUAGES = languages.summary_options()
+SUMMARY_PRESETS = prompts.options()
 
 STAGE_LABELS = ["Waiting", "Transcribing", "Cleaning up", "Summarizing", "Exporting"]
 TOTAL_STAGES = 4
@@ -112,6 +114,8 @@ def _index_context() -> dict:
         "export_contents": EXPORT_CONTENTS,
         "default_export_content": config.DEFAULT_EXPORT_CONTENT,
         "summary_languages": SUMMARY_LANGUAGES,
+        "summary_presets": SUMMARY_PRESETS,
+        "default_summary_preset": getattr(config, "DEFAULT_SUMMARY_PRESET", prompts.DEFAULT_PRESET),
         "default_language": getattr(config, "DEFAULT_LANGUAGE", "auto"),
         "default_summary_language": getattr(config, "DEFAULT_SUMMARY_LANGUAGE", "same"),
         "default_cleanup_model": config.DEFAULT_CLEANUP_MODEL,
@@ -304,6 +308,7 @@ def _build_args(
     language, model, mode, diarize, speakers, speaker_names, meeting_name,
     fmt, export_content, cleanup_model, summary_model, summary_language, output_dir,
     is_batch: bool, workers: int = 1,
+    summary_preset: str = prompts.DEFAULT_PRESET, summary_prompt: str = "",
 ):
     """Builds the plain object main.process_single()/resolve_model() expect."""
     workers = resolve_workers(workers, is_batch)
@@ -320,6 +325,9 @@ def _build_args(
         cleanup_model=cleanup_model,
         summary_model=summary_model,
         summary_language=summary_language,
+        summary_preset=summary_preset,
+        summary_prompt=summary_prompt or None,
+        summary_prompt_file=None,
         output_dir=output_dir,
         # main.resolve_model divides the RAM budget by this, so it has to be
         # the real worker count and not just a flag.
@@ -351,7 +359,9 @@ def resolve_speakers(speakers: str, custom: str) -> str:
 
 
 def _validate_submission(diarize: bool, mode: str, export_content: str, fmt: str, speakers: str,
-                         language: str = "auto", summary_language: str = "same") -> Optional[str]:
+                         language: str = "auto", summary_language: str = "same",
+                         summary_preset: str = prompts.DEFAULT_PRESET,
+                         summary_prompt: str = "") -> Optional[str]:
     """Mirrors main.validate_args for the combinations the form can produce."""
     if diarize and pipeline.hf_token_is_placeholder(config.HF_TOKEN):
         return (
@@ -371,6 +381,10 @@ def _validate_submission(diarize: bool, mode: str, export_content: str, fmt: str
         return f"“{language}” is not a language Whisper can transcribe."
     if summary_language != "same" and not languages.is_supported(summary_language):
         return f"“{summary_language}” is not a language the summary can be written in."
+    if summary_preset not in prompts.PRESET_KEYS:
+        return f"Unknown summary preset “{summary_preset}”."
+    if summary_preset == prompts.CUSTOM_KEY and not summary_prompt.strip():
+        return "Pick a summary preset, or write your own instructions in the box."
     if mode not in pipeline.MODE_CHOICES:
         return f"Unknown pipeline mode “{mode}”."
     if fmt not in pipeline.FORMAT_CHOICES:
@@ -448,6 +462,8 @@ def run(
     cleanup_model: str = Form("llama3.1"),
     summary_model: str = Form("llama3.1"),
     summary_language: str = Form("same"),
+    summary_preset: str = Form(prompts.DEFAULT_PRESET),
+    summary_prompt: str = Form(""),
     parallel_workers: str = Form("1"),
 ):
     global _active_job_id, _starting
@@ -467,6 +483,7 @@ def run(
             resolve_speakers(speakers, speakers_custom),
             speaker_names, meeting_name, format, export_content,
             cleanup_model, summary_model, summary_language, parallel_workers,
+            summary_preset, summary_prompt,
         )
     finally:
         with _lock:
@@ -477,12 +494,13 @@ def _start_run(
     request, audio_files, language, model, mode, wants_diarization, speakers,
     speaker_names, meeting_name, fmt, export_content,
     cleanup_model, summary_model, summary_language, parallel_workers="1",
+    summary_preset=prompts.DEFAULT_PRESET, summary_prompt="",
 ) -> HTMLResponse:
     """Validates the submission, saves the uploads, and kicks off the worker."""
     global _active_job_id
 
     problem = _validate_submission(wants_diarization, mode, export_content, fmt, speakers,
-                                   language, summary_language)
+                                   language, summary_language, summary_preset, summary_prompt)
     if problem:
         return _status_response(request, _latest_job(), problem)
 
@@ -516,6 +534,7 @@ def _start_run(
             fmt, export_content, cleanup_model, summary_model, summary_language,
             config.DEFAULT_OUTPUT_DIR,
             is_batch, workers=parallel_workers,
+            summary_preset=summary_preset, summary_prompt=summary_prompt,
         )
         args.model = pipeline.resolve_model(args)
         job = Job(str(uuid.uuid4()), [Path(p).name for p in audio_paths], workers=args.parallel_workers)

@@ -150,6 +150,29 @@
             {{ f.model_field("summary_model", "Ollama model · summary", default_summary_model) }}
           </div>
           {{ f.select_field("summary_language", "Summary language", summary_languages, default_summary_language) }}
+
+          <div class="field">
+            <label class="label" for="summary_preset">What the summary should contain</label>
+            <select class="select" id="summary_preset" name="summary_preset"
+                    onchange="onSummaryPresetChange(this)">
+              {% for value, label, note in summary_presets %}
+              <option value="{{ value }}" {% if value == default_summary_preset %}selected{% endif %}>
+                {{ label }} — {{ note }}
+              </option>
+              {% endfor %}
+            </select>
+            <p class="hint" id="summary-preset-hint"></p>
+          </div>
+
+          <div class="field hidden" id="summary-prompt-field">
+            <label class="label" for="summary_prompt">Your instructions</label>
+            <textarea class="input textarea" id="summary_prompt" name="summary_prompt" rows="7"
+                      placeholder="## Key Risks&#10;Anything that could delay the project.&#10;&#10;## Owners&#10;Who is responsible for what."></textarea>
+            <p class="hint">
+              Describe the sections you want, as you would to an assistant. Write
+              <code>{transcript}</code> anywhere to take over the whole prompt instead.
+            </p>
+          </div>
           {% endcall %}
 
           <div id="parallel-field" class="field hidden">
@@ -362,9 +385,19 @@
     function formatSize(mb) {
       return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
     }
+    onSummaryPresetChange(document.getElementById("summary_preset"));
     loadHealth();
 
     /* ── Conditional fields ────────────────────────────────────────────── */
+    function onSummaryPresetChange(el) {
+      const custom = el.value === "custom";
+      document.getElementById("summary-prompt-field").classList.toggle("hidden", !custom);
+      document.getElementById("summary-preset-hint").textContent = custom
+        ? ""
+        : el.options[el.selectedIndex].text.split("—").slice(1).join("—").trim();
+      if (custom) document.getElementById("summary_prompt").focus();
+    }
+
     function onSpeakerCountChange(el) {
       const custom = document.getElementById("speakers_custom");
       const isCustom = el.value === "custom";
@@ -379,6 +412,8 @@
     function onModeChange(el) {
       const producesSummary = el.value === "full" || el.value === "summary";
       document.getElementById("export-content-field").classList.toggle("hidden", !producesSummary);
+      document.getElementById("summary_preset").closest(".field").classList.toggle("hidden", !producesSummary);
+      if (!producesSummary) document.getElementById("summary-prompt-field").classList.add("hidden");
       if (!producesSummary) {
         const full = document.querySelector('input[name="export_content"][value="full"]');
         if (full) full.checked = true;

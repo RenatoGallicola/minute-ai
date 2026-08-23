@@ -254,6 +254,14 @@ a { color: inherit; }
 }
 .select option { background: var(--surface-solid); color: var(--text); }
 
+.textarea {
+  min-height: 8.5rem;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
 /* Segmented control ------------------------------------------------------ */
 
 .segmented { display: flex; flex-wrap: wrap; gap: 6px; }
