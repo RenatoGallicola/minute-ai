@@ -177,10 +177,9 @@
 
           <div id="parallel-field" class="field hidden">
             <label class="label" for="parallel_workers">Files at a time</label>
-            <select class="select" id="parallel_workers" name="parallel_workers">
-              {% for n in range(1, max_workers + 1) %}
-              <option value="{{ n }}">{{ n }}{{ " (one after another)" if n == 1 }}</option>
-              {% endfor %}
+            <select class="select" id="parallel_workers" name="parallel_workers"
+                    data-max="{{ max_workers }}">
+              <option value="1">1 (one after another)</option>
             </select>
             <p class="hint">
               Each worker loads its own Whisper model, so more workers means proportionally more
@@ -465,11 +464,29 @@
       document.getElementById("meeting-name-wrapper").classList.toggle("hidden", multi);
       // Running several files at once only means anything with several files.
       document.getElementById("parallel-field").classList.toggle("hidden", !multi);
-      if (!multi) document.getElementById("parallel_workers").value = "1";
+      syncWorkerOptions();
 
       document.getElementById("submit-btn").disabled = chosen.length === 0;
       updateSubmitNote();
       checkSpeakerNames();
+    }
+
+    /* Offer only worker counts that can actually be used: four workers for two
+       files leaves two idle and makes 'Automatic' pick a smaller Whisper model. */
+    function syncWorkerOptions() {
+      const select = document.getElementById("parallel_workers");
+      const ceiling = parseInt(select.dataset.max, 10) || 1;
+      const usable = Math.max(1, Math.min(chosen.length, ceiling));
+      const wanted = parseInt(select.value, 10) || 1;
+
+      select.replaceChildren(...Array.from({ length: usable }, (_, i) => {
+        const n = i + 1;
+        const option = document.createElement("option");
+        option.value = String(n);
+        option.textContent = n === 1 ? "1 (one after another)" : String(n);
+        return option;
+      }));
+      select.value = String(Math.min(wanted, usable));
     }
 
     function updateSubmitNote() {
@@ -478,11 +495,14 @@
         note.textContent = "Add a recording to get started";
         return;
       }
+      if (chosen.length === 1) {
+        note.textContent = "1 file ready";
+        return;
+      }
       const workers = parseInt(document.getElementById("parallel_workers").value, 10) || 1;
-      const plural = chosen.length === 1 ? "" : "s";
-      note.textContent = chosen.length > 1 && workers > 1
+      note.textContent = workers > 1
         ? `${chosen.length} files ready · ${workers} at a time`
-        : `${chosen.length} file${plural} ready · one after another`;
+        : `${chosen.length} files ready · one after another`;
     }
 
     /* The transcript only reveals a mismatch after the run, so say it now,
@@ -569,14 +589,61 @@
       }
     });
 
+    /* ── Progress bar ──────────────────────────────────────────────────── */
+    /* Progress is only known at stage boundaries, so the raw value steps in
+       jumps. The bar catches up to the confirmed value quickly, then creeps
+       towards the next checkpoint without ever reaching it, so it keeps moving
+       without claiming more than the pipeline has reported. */
+    const bar = { shown: 0, target: 0, ceiling: 0, job: null, el: null, frame: null };
+    const STILL = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function readProgress() {
+      const track = document.querySelector(".progress");
+      if (!track) {
+        bar.el = null;
+        if (bar.frame) { cancelAnimationFrame(bar.frame); bar.frame = null; }
+        return;
+      }
+      // A new run restarts from zero rather than sliding down from the old value.
+      if (track.dataset.job !== bar.job) {
+        bar.job = track.dataset.job;
+        bar.shown = 0;
+      }
+      bar.el = track.querySelector("span");
+      bar.target = parseFloat(track.dataset.percent) || 0;
+      bar.ceiling = parseFloat(track.dataset.next) || bar.target;
+      bar.shown = Math.max(bar.shown, 0);
+
+      if (STILL) {
+        bar.el.style.width = bar.target + "%";
+        return;
+      }
+      if (!bar.frame) bar.frame = requestAnimationFrame(stepProgress);
+    }
+
+    function stepProgress() {
+      if (!bar.el || !bar.el.isConnected) { bar.frame = null; return; }
+      const catchingUp = bar.shown < bar.target;
+      const goal = catchingUp ? bar.target : bar.ceiling;
+      const rate = catchingUp ? 0.14 : 0.010;
+      bar.shown += (goal - bar.shown) * rate;
+      if (bar.shown > 100) bar.shown = 100;
+      bar.el.style.width = bar.shown.toFixed(2) + "%";
+      bar.frame = requestAnimationFrame(stepProgress);
+    }
+
     function stickLogToBottom() {
       const box = document.getElementById("log-box");
       if (box) box.scrollTop = box.scrollHeight;
     }
     document.body.addEventListener("htmx:afterSwap", (evt) => {
-      if (evt.detail.target && evt.detail.target.id === "status-panel") stickLogToBottom();
+      if (evt.detail.target && evt.detail.target.id === "status-panel") {
+        stickLogToBottom();
+        readProgress();
+      }
     });
     stickLogToBottom();
+    readProgress();
   </script>
 </body>
 </html>

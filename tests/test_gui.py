@@ -177,34 +177,50 @@ class TestWhisperModelAvailability:
 
 class TestResolveWorkers:
     def test_a_single_file_is_never_parallel(self):
-        assert gui.resolve_workers(4, is_batch=False) == 1
+        assert gui.resolve_workers(4, file_count=1) == 1
+
+    def test_never_more_workers_than_files(self):
+        # Four workers for two files leaves two idle, and resolve_model would
+        # still divide the memory budget by four and pick a smaller model.
+        assert gui.resolve_workers(4, file_count=2) == 2
+        assert gui.resolve_workers(3, file_count=2) == 2
 
     def test_clamped_to_the_maximum(self):
-        assert gui.resolve_workers(99, is_batch=True) == gui.MAX_PARALLEL_WORKERS
+        assert gui.resolve_workers(99, file_count=50) == gui.MAX_PARALLEL_WORKERS
 
     def test_at_least_one(self):
-        assert gui.resolve_workers(0, is_batch=True) == 1
-        assert gui.resolve_workers(-3, is_batch=True) == 1
+        assert gui.resolve_workers(0, file_count=5) == 1
+        assert gui.resolve_workers(-3, file_count=5) == 1
 
     def test_garbage_falls_back_to_one(self):
-        assert gui.resolve_workers("abc", is_batch=True) == 1
+        assert gui.resolve_workers("abc", file_count=5) == 1
 
     def test_passes_a_sane_value_through(self):
-        assert gui.resolve_workers("3", is_batch=True) == 3
+        assert gui.resolve_workers("3", file_count=5) == 3
+
+    def test_zero_files_does_not_divide_by_zero(self):
+        assert gui.resolve_workers(2, file_count=0) == 1
 
     def test_build_args_marks_parallel_only_above_one_worker(self):
         args = gui._build_args(
             "auto", "auto", "full", True, "auto", "", "",
-            "md", "full", "m", "m", "same", "outputs", is_batch=True, workers=3,
+            "md", "full", "m", "m", "same", "outputs", file_count=3, workers=3,
         )
         assert args.parallel is True
         assert args.parallel_workers == 3
 
         single = gui._build_args(
             "auto", "auto", "full", True, "auto", "", "",
-            "md", "full", "m", "m", "same", "outputs", is_batch=True, workers=1,
+            "md", "full", "m", "m", "same", "outputs", file_count=3, workers=1,
         )
         assert single.parallel is False
+
+    def test_build_args_caps_workers_at_the_file_count(self):
+        args = gui._build_args(
+            "auto", "auto", "full", True, "auto", "", "",
+            "md", "full", "m", "m", "same", "outputs", file_count=2, workers=4,
+        )
+        assert args.parallel_workers == 2
 
     def test_health_exposes_the_list_the_picker_needs(self, client, monkeypatch):
         monkeypatch.setattr(gui, "probe_ollama", lambda host: (True, ["llama3.2:3b", "qwen2.5:7b"]))
@@ -238,7 +254,7 @@ class TestBuildArgs:
     def test_single_file_keeps_speaker_names_and_meeting_name(self):
         args = gui._build_args(
             "en", "medium", "full", True, "2", "Marco,Sara", "Q3 Kickoff",
-            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", file_count=1,
         )
         assert args.speaker_names == "Marco,Sara"
         assert args.meeting_name == "Q3 Kickoff"
@@ -248,7 +264,7 @@ class TestBuildArgs:
     def test_batch_drops_speaker_names_and_meeting_name(self):
         args = gui._build_args(
             "en", "medium", "full", True, "auto", "Marco,Sara", "Q3 Kickoff",
-            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=True,
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", file_count=2,
         )
         assert args.speaker_names is None
         assert args.meeting_name is None
@@ -256,14 +272,14 @@ class TestBuildArgs:
     def test_auto_speakers_becomes_none(self):
         args = gui._build_args(
             "auto", "auto", "full", True, "auto", "", "",
-            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", file_count=1,
         )
         assert args.speakers is None
 
     def test_no_diarize_when_diarize_false(self):
         args = gui._build_args(
             "auto", "auto", "full", False, "auto", "", "",
-            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", file_count=1,
         )
         assert args.no_diarize is True
 
@@ -272,7 +288,7 @@ class TestBuildArgs:
         # still submits it; passing it through would silently do nothing.
         args = gui._build_args(
             "auto", "auto", "full", False, "auto", "Marco,Sara", "",
-            "md", "full", "llama3.1", "llama3.1", "same", "outputs", is_batch=False,
+            "md", "full", "llama3.1", "llama3.1", "same", "outputs", file_count=1,
         )
         assert args.speaker_names is None
 

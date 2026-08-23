@@ -9,7 +9,7 @@
 [![CI](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yaml/badge.svg)](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yaml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-336-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-339-brightgreen.svg)](tests/)
 
 </div>
 
@@ -306,7 +306,7 @@ minute-ai/
 │   └── logger.py         # Centralised logging
 ├── templates/            # Jinja2 templates
 ├── static/               # app.css, vendored htmx, favicon
-├── tests/                # 336 unit and integration tests
+├── tests/                # 339 unit and integration tests
 ├── examples/             # A real, unedited run
 ├── main.py               # CLI entry point
 ├── gui.py                # FastAPI web app
@@ -317,7 +317,7 @@ minute-ai/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                  # 336 tests, ~5 seconds
+pytest                  # 339 tests, ~5 seconds
 ruff check .
 ```
 

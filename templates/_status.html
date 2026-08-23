@@ -51,7 +51,8 @@
   {% elif job.errors and not job.output_files %}{% set bar = "is-bad" %}
   {% elif job.status == "cancelled" %}{% set bar = "is-warn" %}
   {% else %}{% set bar = "is-done" %}{% endif %}
-  <div class="progress {{ bar }}">
+  <div class="progress {{ bar }}" data-job="{{ job.id }}"
+       data-percent="{{ job.percent }}" data-next="{{ job.next_percent }}">
     <span style="width: {{ job.percent }}%"></span>
   </div>
 

@@ -614,12 +614,14 @@ details.card[open] summary { border-bottom: 1px solid var(--border); }
   background: var(--surface-2);
   overflow: hidden;
 }
+/* No CSS transition: htmx replaces this element on every poll, so a new node
+   would start at its final width and never animate. The width is driven frame
+   by frame from index.html instead. */
 .progress span {
   display: block;
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width 600ms var(--ease);
 }
 .progress.is-running span::after {
   content: "";

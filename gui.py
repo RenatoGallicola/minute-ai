@@ -183,6 +183,19 @@ class Job:
         return min(int(completed / (self.total_files * TOTAL_STAGES) * 100), 99)
 
     @property
+    def next_percent(self) -> int:
+        """The next checkpoint, so the bar can creep towards it between polls.
+
+        Progress is only known at stage boundaries, which makes the bar jump.
+        Advancing towards this value (without reaching it) keeps it moving
+        without ever claiming more than the pipeline has actually reported.
+        """
+        if self.done:
+            return 100
+        span = self.total_files if self.is_parallel else self.total_files * TOTAL_STAGES
+        return min(self.percent + int(100 / max(span, 1)), 99)
+
+    @property
     def stage_label(self) -> str:
         if self.status == "cancelled":
             return "Stopped"
@@ -314,11 +327,12 @@ def _running_job() -> Job | None:
 def _build_args(
     language, model, mode, diarize, speakers, speaker_names, meeting_name,
     fmt, export_content, cleanup_model, summary_model, summary_language, output_dir,
-    is_batch: bool, workers: int = 1,
+    file_count: int, workers: int = 1,
     summary_preset: str = prompts.DEFAULT_PRESET, summary_prompt: str = "",
 ):
     """Builds the plain object main.process_single()/resolve_model() expect."""
-    workers = resolve_workers(workers, is_batch)
+    is_batch = file_count > 1
+    workers = resolve_workers(workers, file_count)
     return argparse.Namespace(
         language=language,
         model=model,
@@ -343,15 +357,19 @@ def _build_args(
     )
 
 
-def resolve_workers(requested, is_batch: bool) -> int:
-    """Clamps the requested worker count; a single file is always one worker."""
+def resolve_workers(requested, file_count: int) -> int:
+    """Clamps the requested worker count to something that can actually run.
+
+    Capped by the number of files as well as by MAX_PARALLEL_WORKERS: asking for
+    four workers to process two files leaves two idle, and main.resolve_model
+    would still divide the memory budget by four and pick a smaller Whisper
+    model than the machine can afford.
+    """
     try:
         workers = int(requested)
     except (TypeError, ValueError):
         workers = 1
-    if not is_batch:
-        return 1
-    return max(1, min(workers, MAX_PARALLEL_WORKERS))
+    return max(1, min(workers, MAX_PARALLEL_WORKERS, max(file_count, 1)))
 
 
 def resolve_speakers(speakers: str, custom: str) -> str:
@@ -540,7 +558,7 @@ def _start_run(
             language, model, mode, wants_diarization, speakers, speaker_names, meeting_name,
             fmt, export_content, cleanup_model, summary_model, summary_language,
             config.DEFAULT_OUTPUT_DIR,
-            is_batch, workers=parallel_workers,
+            len(audio_paths), workers=parallel_workers,
             summary_preset=summary_preset, summary_prompt=summary_prompt,
         )
         args.model = pipeline.resolve_model(args)
