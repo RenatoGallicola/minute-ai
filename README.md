@@ -147,7 +147,12 @@ are marked *ready* or with their download size, and the model picker offers only
 installed.
 
 Progress streams to the page once a second, parsed from the same `[n/4]` stage markers the CLI
-prints. Light and dark themes follow your OS.
+prints. Light and dark themes follow your OS, and every colour comes from one block of tokens at the
+top of the stylesheet.
+
+<div align="center">
+  <img src="docs/images/results-light.png" alt="The same interface in its light theme" width="820">
+</div>
 
 ## Usage
 
