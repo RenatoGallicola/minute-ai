@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from src.errors import DependencyMissingError, TranscriptionError
 from src.logger import get_logger
 
-
 WHISPER_SAMPLE_RATE = 16000
 SINGLE_SPEAKER_LABEL = "SPEAKER_00"
 

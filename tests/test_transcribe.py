@@ -178,7 +178,9 @@ class TestSingleSpeakerSkipsDiarization:
     """`--speakers 1` should not pay for pyannote."""
 
     def _run(self, monkeypatch, num_speakers, diarize=True):
-        import sys, types
+        import sys
+        import types
+
         from src import transcribe as tr
 
         calls = {"diarize": 0}

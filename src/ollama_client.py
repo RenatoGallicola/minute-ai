@@ -9,7 +9,6 @@ import requests
 from src.errors import OllamaError
 from src.logger import get_logger
 
-
 DEFAULT_TIMEOUT = 600
 PROBE_TIMEOUT = 5
 

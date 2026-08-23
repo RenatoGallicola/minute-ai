@@ -1,6 +1,5 @@
-from pathlib import Path
 
-from src.batch import collect_audio_files, already_processed, run_batch
+from src.batch import already_processed, collect_audio_files, run_batch
 
 
 class TestCollectAudioFiles:

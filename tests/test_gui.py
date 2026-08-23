@@ -1,3 +1,4 @@
+import contextlib
 import io
 import threading
 import time
@@ -638,10 +639,9 @@ class TestParallelRun:
             with lock:
                 concurrent.append(1)
                 peak[0] = max(peak[0], len(concurrent))
-            try:
-                gate.wait()          # only clears if two workers really overlap
-            except Exception:
-                pass
+            # Only clears if two workers really overlap; a timeout means they did not.
+            with contextlib.suppress(Exception):
+                gate.wait()
             with lock:
                 concurrent.pop()
             return _result()

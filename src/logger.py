@@ -5,12 +5,12 @@ Centralized logging setup for minute-ai.
 Logs to both terminal (stdout) and a persistent log file.
 """
 
+import contextlib
 import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-
 
 LOG_DIR = "logs"
 LOG_FILE = "minute-ai.log"
@@ -26,10 +26,8 @@ def _utf8_stream(stream):
     When stdout is redirected to a file or a pipe on Windows it falls back to
     the ANSI code page, and logging a '→' raises UnicodeEncodeError.
     """
-    try:
+    with contextlib.suppress(AttributeError, ValueError, OSError):
         stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError, OSError):
-        pass
     return stream
 
 

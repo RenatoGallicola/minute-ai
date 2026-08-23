@@ -1,0 +1,55 @@
+[project]
+name = "minute-ai"
+version = "1.0.0"
+description = "Local transcription, cleanup and summarization of meeting audio — nothing leaves your machine"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10,<3.13"
+authors = [{ name = "Renato Gallicola" }]
+keywords = ["whisper", "transcription", "diarization", "ollama", "llm", "meeting-notes", "local-first"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Office/Business",
+]
+
+[project.urls]
+Homepage = "https://github.com/RenatoGallicola/minute-ai"
+Issues = "https://github.com/RenatoGallicola/minute-ai/issues"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["venv", "static/htmx.min.js"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "C4",   # comprehensions
+]
+ignore = [
+    "E501",  # line length is handled by the formatter, not enforced on prose
+    "B008",  # FastAPI depends on calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into module internals on purpose, and dict(**kwargs) is the
+# readable form for fixtures whose next line is defaults.update(overrides).
+"tests/*" = ["E402", "C408"]

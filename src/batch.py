@@ -12,7 +12,6 @@ from src.export import EXTENSIONS, formats_for
 from src.logger import get_logger
 from src.naming import meeting_name_from_path, output_stem_pattern
 
-
 SUPPORTED_EXTENSIONS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".wma", ".aac", ".mp4", ".mkv", ".webm", ".opus"}
 
 

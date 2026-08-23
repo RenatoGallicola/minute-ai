@@ -1,0 +1,14 @@
+# Everything the test suite needs — deliberately without whisperx/torch, which
+# are imported lazily and never reached by the tests. Keeps CI to a few seconds
+# instead of a multi-gigabyte install.
+fastapi
+uvicorn
+python-multipart
+jinja2
+requests
+psutil
+python-docx
+reportlab
+
+pytest
+ruff

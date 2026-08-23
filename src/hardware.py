@@ -9,7 +9,6 @@ from pathlib import Path
 
 from src.logger import get_logger
 
-
 # Smallest to largest. Used to compare tiers when a model has to be downgraded.
 MODEL_ORDER = ["tiny", "base", "small", "medium", "large-v3"]
 

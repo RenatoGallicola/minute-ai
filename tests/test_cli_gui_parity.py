@@ -68,8 +68,8 @@ class TestOptionParity:
 
     def test_exemptions_still_refer_to_real_options(self):
         # Stops the allowlist rotting into a lie after a rename.
-        assert GUI_EXEMPT <= cli_flags()
-        assert CLI_EXEMPT <= gui_form_fields()
+        assert cli_flags() >= GUI_EXEMPT
+        assert gui_form_fields() >= CLI_EXEMPT
 
 
 class TestChoiceParity:
@@ -109,7 +109,6 @@ class TestValidationParity:
     def _cli_rejects(self, **overrides):
         import argparse
 
-        import pytest
 
         defaults = dict(
             audio=["a.wav"], language="auto", speakers="auto", speaker_names=None,

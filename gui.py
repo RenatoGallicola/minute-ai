@@ -25,7 +25,6 @@ import zipfile
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -35,18 +34,16 @@ from fastapi.templating import Jinja2Templates
 
 import config
 import main as pipeline
+from src import languages, prompts
 from src.batch import SUPPORTED_EXTENSIONS
-from src import languages
 from src.errors import MinuteAIError
 from src.hardware import MODEL_DOWNLOAD_MB, system_info
 from src.logger import get_logger, setup_logger
 from src.markdown_lite import render as render_markdown
 from src.markdown_lite import render_transcript
 from src.ollama_client import model_available
-from src import prompts
 from src.ollama_client import probe as probe_ollama
 from src.transcribe import format_duration
-
 
 BASE_DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -148,7 +145,7 @@ class Job:
     def __init__(self, job_id: str, file_names: list[str] = None, workers: int = 1):
         self.id = job_id
         self.created_at = time.time()
-        self.finished_at: Optional[float] = None
+        self.finished_at: float | None = None
         self.status = "running"          # running | done | cancelled
         self.done = False
         self.stage = 0
@@ -233,7 +230,7 @@ _TRANSCRIBING_LINE = re.compile(r"^(\[1/4\] Transcribing audio:)\s*(.+)$")
 _STAGE_LINE = re.compile(r"^\[(\d)/4\]")
 
 
-def _clean_log_line(message: str) -> Optional[str]:
+def _clean_log_line(message: str) -> str | None:
     """Trims and simplifies a raw pipeline log line for display in the web UI.
 
     The CLI log format includes terminal-oriented details (indentation, a
@@ -275,7 +272,7 @@ class _JobLogHandler(logging.Handler):
 
 _lock = threading.Lock()
 _jobs: "OrderedDict[str, Job]" = OrderedDict()
-_active_job_id: Optional[str] = None
+_active_job_id: str | None = None
 # Held between "this request won the slot" and "the worker thread is running",
 # so two submissions arriving together cannot both get past the busy check.
 _starting = False
@@ -288,17 +285,17 @@ def _remember(job: Job):
         _jobs.popitem(last=False)
 
 
-def _get_job(job_id: str) -> Optional[Job]:
+def _get_job(job_id: str) -> Job | None:
     with _lock:
         return _jobs.get(job_id)
 
 
-def _latest_job() -> Optional[Job]:
+def _latest_job() -> Job | None:
     with _lock:
         return next(reversed(_jobs.values())) if _jobs else None
 
 
-def _running_job() -> Optional[Job]:
+def _running_job() -> Job | None:
     with _lock:
         job = _jobs.get(_active_job_id) if _active_job_id else None
     return job if job and not job.done else None
@@ -361,7 +358,7 @@ def resolve_speakers(speakers: str, custom: str) -> str:
 def _validate_submission(diarize: bool, mode: str, export_content: str, fmt: str, speakers: str,
                          language: str = "auto", summary_language: str = "same",
                          summary_preset: str = prompts.DEFAULT_PRESET,
-                         summary_prompt: str = "") -> Optional[str]:
+                         summary_prompt: str = "") -> str | None:
     """Mirrors main.validate_args for the combinations the form can produce."""
     if diarize and pipeline.hf_token_is_placeholder(config.HF_TOKEN):
         return (
@@ -392,7 +389,7 @@ def _validate_submission(diarize: bool, mode: str, export_content: str, fmt: str
     return None
 
 
-def _status_response(request: Request, job: Optional[Job], error: Optional[str] = None) -> HTMLResponse:
+def _status_response(request: Request, job: Job | None, error: str | None = None) -> HTMLResponse:
     return templates.TemplateResponse(request, "_status.html", {"job": job, "error": error})
 
 
@@ -452,7 +449,7 @@ def run(
     language: str = Form("auto"),
     model: str = Form("auto"),
     mode: str = Form("full"),
-    diarize: Optional[str] = Form(None),
+    diarize: str | None = Form(None),
     speakers: str = Form("auto"),
     speakers_custom: str = Form(""),
     speaker_names: str = Form(""),
@@ -581,12 +578,12 @@ def _start_run(
                 with ThreadPoolExecutor(max_workers=job.workers) as pool:
                     futures = [
                         pool.submit(process_one, i, path, entry)
-                        for i, (path, entry) in enumerate(zip(audio_paths, entries))
+                        for i, (path, entry) in enumerate(zip(audio_paths, entries, strict=True))
                     ]
                     for future in futures:
                         future.result()  # process_one swallows its own failures
             else:
-                for i, (path, entry) in enumerate(zip(audio_paths, entries)):
+                for i, (path, entry) in enumerate(zip(audio_paths, entries, strict=True)):
                     process_one(i, path, entry)
 
             job.current_index = len(audio_paths)

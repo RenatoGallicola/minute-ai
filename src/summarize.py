@@ -11,7 +11,6 @@ from src.logger import get_logger
 from src.ollama_client import DEFAULT_TIMEOUT, call_ollama, check_ollama
 from src.prompts import DEFAULT_PRESET, fill, is_full_template, resolve_instructions
 
-
 DEFAULT_CHUNK_CHARS = 6000
 
 

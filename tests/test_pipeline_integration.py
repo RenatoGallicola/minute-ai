@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 
 import main
-from src import cleanup, summarize, transcribe as transcribe_module
+from src import cleanup, summarize
+from src import transcribe as transcribe_module
 from src.errors import TranscriptionError
-
 
 SEGMENTS = [
     {"start": 0.0, "end": 2.0, "text": "Hello everyone.", "speaker": "SPEAKER_01"},
@@ -64,7 +64,7 @@ class TestProcessSingle:
         assert "Ana:" in result.transcript
         assert len(result.output_files) == 1
 
-        content = open(result.output_files[0], encoding="utf-8").read()
+        content = Path(result.output_files[0]).read_text(encoding="utf-8")
         assert "# Q3 Kickoff" in content
         assert "Decisions Made" in content
         assert "Full Transcript" in content
@@ -111,7 +111,7 @@ class TestProcessSingle:
         result = main.process_single("a.wav", make_args(tmp_path), is_batch=False)
         assert result.summary == ""
         assert len(result.output_files) == 1
-        assert "Hello everyone." in open(result.output_files[0], encoding="utf-8").read()
+        assert "Hello everyone." in Path(result.output_files[0]).read_text(encoding="utf-8")
 
     def test_meeting_name_with_illegal_characters_is_written_safely(self, tmp_path, stub_pipeline):
         args = make_args(tmp_path, meeting_name="Q3: Kickoff <draft>")

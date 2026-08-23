@@ -14,7 +14,6 @@ from src.logger import get_logger
 from src.naming import output_stem, unique_path
 from src.transcribe import format_duration
 
-
 FORMATS = ("md", "txt", "docx", "pdf", "srt")
 EXTENSIONS = {fmt: f".{fmt}" for fmt in FORMATS}
 
@@ -275,11 +274,11 @@ def _docx_add_inline(paragraph, text):
 def _write_pdf(path, meta, summary, transcript, include_transcript, include_summary):
     log = get_logger()
     try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import cm
         from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, PageBreak
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer
     except ImportError:
         log.error("reportlab is not installed. Run: pip install reportlab")
         return False

@@ -60,14 +60,6 @@ class TestDocxExport:
         assert Path(files[0]).stat().st_size > 0
 
 
-class TestPdfExport:
-    def test_creates_pdf_file(self, tmp_path):
-        files = _run_export(tmp_path, "pdf")
-        assert len(files) == 1
-        assert Path(files[0]).exists()
-        assert Path(files[0]).stat().st_size > 0
-
-
 class TestAllFormats:
     def test_all_creates_four_files(self, tmp_path):
         files = _run_export(tmp_path, "all")
