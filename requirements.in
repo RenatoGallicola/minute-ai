@@ -14,7 +14,7 @@ whisperx
 python-docx
 reportlab
 
-# GUI (FastAPI + Jinja2 + htmx; Tailwind CSS is precompiled, see static/README)
+# GUI (FastAPI + Jinja2 + htmx; CSS is hand-written in static/app.css - no build step)
 fastapi
 uvicorn[standard]
 python-multipart

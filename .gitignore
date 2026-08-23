@@ -37,7 +37,8 @@ Thumbs.db
 # Uncomment the line below if you prefer not to commit the pinned requirements
 # requirements.txt
 
-# Node tooling used only to (re)compile static/tailwind.css — never a runtime dependency
+# The GUI stylesheet is hand-written (static/app.css); no Node tooling is used.
+# Kept only so a stray npm install cannot get committed.
 node_modules/
 package.json
 package-lock.json
