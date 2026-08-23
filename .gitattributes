@@ -1,0 +1,16 @@
+# Normalise line endings: LF in the repository and in every working copy, so a
+# clone on Linux or macOS does not show the whole project as modified.
+* text=auto eol=lf
+
+# Binary assets git must never touch.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.pdf  binary
+*.docx binary
+*.mp3  binary
+*.m4a  binary
+*.wav  binary
+
+# Vendored dependency: keep it out of diffs and language statistics.
+static/htmx.min.js linguist-vendored
