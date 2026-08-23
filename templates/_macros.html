@@ -1,42 +1,108 @@
+{# ── Reusable form building blocks ─────────────────────────────────────── #}
+
+{% macro card_head(step, title, note="") %}
+<div class="card-head">
+  <span class="step-dot">{{ step }}</span>
+  <h2>{{ title }}</h2>
+  {% if note %}<span class="head-note">{{ note }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+
 {% macro select_field(name, label, options, selected, hint=None) %}
-<div>
-  <label for="{{ name }}" class="block text-sm text-ink dark:text-ink-dark mb-1.5">{{ label }}</label>
-  <select id="{{ name }}" name="{{ name }}"
-          class="w-full rounded-lg border border-line dark:border-line-dark bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-amber dark:focus-visible:border-amber-dark focus-visible:ring-2 focus-visible:ring-amber/30 dark:focus-visible:ring-amber-dark/30">
+<div class="field">
+  <label class="label" for="{{ name }}">{{ label }}</label>
+  <select class="select" id="{{ name }}" name="{{ name }}">
     {% for value, text in options %}
     <option value="{{ value }}" {% if value == selected %}selected{% endif %}>{{ text }}</option>
     {% endfor %}
   </select>
-  {% if hint %}<p class="mt-1 text-xs text-muted dark:text-muted-dark">{{ hint }}</p>{% endif %}
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
 </div>
 {% endmacro %}
 
-{% macro text_field(name, label, placeholder="", value="", hint=None) %}
-<div>
-  <label for="{{ name }}" class="block text-sm text-ink dark:text-ink-dark mb-1.5">{{ label }}</label>
-  <input type="text" id="{{ name }}" name="{{ name }}" value="{{ value }}" placeholder="{{ placeholder }}"
-         class="w-full rounded-lg border border-line dark:border-line-dark bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark px-3 py-2 text-sm placeholder:text-muted/70 dark:placeholder:text-muted-dark/70 focus-visible:outline-none focus-visible:border-amber dark:focus-visible:border-amber-dark focus-visible:ring-2 focus-visible:ring-amber/30 dark:focus-visible:ring-amber-dark/30">
-  {% if hint %}<p class="mt-1 text-xs text-muted dark:text-muted-dark">{{ hint }}</p>{% endif %}
+
+{% macro text_field(name, label, placeholder="", value="", hint=None, list=None) %}
+<div class="field">
+  <label class="label" for="{{ name }}">{{ label }}</label>
+  <input class="input" type="text" id="{{ name }}" name="{{ name }}"
+         value="{{ value }}" placeholder="{{ placeholder }}"
+         {% if list %}list="{{ list }}" autocomplete="off"{% endif %}>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
 </div>
 {% endmacro %}
 
-{% macro radio_pills(name, label, options, selected, onchange=None) %}
-<div>
-  <span class="block text-sm text-ink dark:text-ink-dark mb-2">{{ label }}</span>
-  <div class="flex flex-wrap gap-2">
-    {% for value, text in options %}
-    <label class="cursor-pointer select-none">
-      <input type="radio" name="{{ name }}" value="{{ value }}" {% if value == selected %}checked{% endif %}
-             {% if onchange %}onchange="{{ onchange }}"{% endif %} class="peer sr-only">
-      <span class="inline-block rounded-full border border-line dark:border-line-dark px-3 py-1.5 text-sm text-ink dark:text-ink-dark transition-colors
-                   peer-checked:bg-amber dark:peer-checked:bg-amber-dark peer-checked:border-amber dark:peer-checked:border-amber-dark peer-checked:text-white
-                   peer-focus-visible:ring-2 peer-focus-visible:ring-amber/40 dark:peer-focus-visible:ring-amber-dark/40">{{ text }}</span>
+
+{#
+  options: list of (value, title, note) — `note` may be empty.
+  `columns` switches between a wrapping row of pills and a 2-column grid.
+#}
+{% macro segmented(name, label, options, selected, onchange=None, style="grid", hint=None, needs_ollama=[]) %}
+<div class="field">
+  {% if label %}<span class="label">{{ label }}</span>{% endif %}
+  <div class="segmented {{ 'grid-2' if style == 'grid' }}" role="radiogroup" aria-label="{{ label }}">
+    {% for value, title, note in options %}
+    <label class="seg {{ 'pill' if style == 'pill' }}">
+      <input type="radio" name="{{ name }}" value="{{ value }}"
+             {% if value == selected %}checked{% endif %}
+             {% if value in needs_ollama %}data-needs-ollama{% endif %}
+             {% if onchange %}onchange="{{ onchange }}"{% endif %}>
+      <span class="seg-body">
+        <span class="seg-title">{{ title }}</span>
+        {% if note and style != 'pill' %}<span class="seg-note">{{ note }}</span>{% endif %}
+      </span>
     </label>
     {% endfor %}
   </div>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
 </div>
 {% endmacro %}
 
-{% macro eyebrow(text) %}
-<p class="text-xs font-semibold tracking-widest uppercase text-muted dark:text-muted-dark mb-4">{{ text }}</p>
+
+{#
+  Ollama model picker.
+
+  Rendered as a plain text field, then upgraded to a <select> of installed
+  models once /api/health answers. Doing it that way round means the page never
+  blocks on a possibly-unreachable Ollama, and the field still works with no JS
+  or with Ollama down — the one case where the list genuinely cannot be known.
+#}
+{% macro model_field(name, label, value) %}
+<div class="field" data-model-field>
+  <label class="label" for="{{ name }}">{{ label }}</label>
+  <select class="select" id="{{ name }}" name="{{ name }}" data-configured="{{ value }}" disabled>
+    <option value="{{ value }}">{{ value }}</option>
+  </select>
+  <p class="hint" data-hint-for="{{ name }}">Checking which models Ollama has…</p>
+</div>
+{% endmacro %}
+
+
+{#
+  A block of controls that only makes sense when Ollama can actually run.
+  `fieldset[disabled]` blocks interaction *and* stops the browser submitting
+  the fields, so a disabled option can never reach the server.
+#}
+{% macro needs_ollama(label="") %}
+<fieldset class="needs-ollama" data-needs-ollama disabled>
+  {% if label %}<legend class="sr-only">{{ label }}</legend>{% endif %}
+  {{ caller() }}
+</fieldset>
+{% endmacro %}
+
+
+{% macro icon(name) %}
+{% if name == "download" %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+{% elif name == "alert" %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 8v5m0 3.5v.01M10.3 3.9 2.6 17.4A2 2 0 0 0 4.3 20.4h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+{% elif name == "check" %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>
+{% elif name == "spinner" %}
+<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a9 9 0 0 1 9 9" /><circle cx="12" cy="12" r="9" opacity="0.22"/></svg>
+{% elif name == "wave" %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.7 12h1.1M6.75 9.5v5M10.25 5.5v13M13.75 7.75v8.5M17.25 10.25v3.5M21.2 12h1.1"/></svg>
+{% elif name == "stop" %}
+<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
+{% endif %}
 {% endmacro %}

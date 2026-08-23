@@ -1,6 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#101e1a"/>
-  <rect x="8" y="12" width="4" height="8" rx="2" fill="#d99a55"/>
-  <rect x="14" y="6" width="4" height="20" rx="2" fill="#d99a55"/>
-  <rect x="20" y="9" width="4" height="14" rx="2" fill="#d99a55"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c8cff"/>
+      <stop offset="1" stop-color="#3fd6c0"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#0b0d14"/>
+  <!-- Same waveform as the in-app brand mark. Bars sit 6 apart and the group is
+       centred on 16, so the spacing reads even. -->
+  <g stroke="url(#g)" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M7 14v4M13 9v14M19 12v8M25 15v2"/>
+  </g>
 </svg>

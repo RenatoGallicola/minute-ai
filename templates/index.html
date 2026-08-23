@@ -1,145 +1,547 @@
 <!doctype html>
 {% import "_macros.html" as f %}
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Minute AI</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/tailwind.css">
-  <script src="/static/htmx.min.js"></script>
+  <link rel="stylesheet" href="/static/app.css">
+  <script>
+    // Applied before first paint so the page never flashes the wrong theme.
+    // Stored choice wins; otherwise follow the operating system.
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem("minute-ai-theme"); } catch (e) {}
+      var os = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", stored || os);
+    })();
+  </script>
+  <script src="/static/htmx.min.js" defer></script>
 </head>
-<body class="min-h-full bg-paper dark:bg-paper-dark text-ink dark:text-ink-dark antialiased font-sans">
-  <div class="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14">
+<body>
 
-    <header class="mb-8">
-      <h1 class="font-serif text-3xl sm:text-[2.15rem] leading-none">Minute AI</h1>
-      <p class="mt-2 text-sm text-muted dark:text-muted-dark">Audio → transcript → summary, fully local</p>
-    </header>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M5.25 10.5v3M9.75 6.75v10.5M14.25 9v6M18.75 11.25v1.5"/>
+        </svg>
+      </span>
+      <span>
+        <span class="brand-name">Minute AI</span>
+        <span class="brand-sub">Local meeting notes</span>
+      </span>
+    </div>
 
-    <div class="grid gap-6 lg:grid-cols-5 items-start">
+    <div class="chips" id="health-chips" aria-live="polite">
+      <span class="chip"><span class="dot"></span>Checking…</span>
+    </div>
 
-      <form id="run-form" hx-post="/run" hx-target="#status-panel" hx-swap="innerHTML"
-            hx-encoding="multipart/form-data"
-            class="lg:col-span-3 rounded-2xl border border-line dark:border-line-dark bg-panel dark:bg-panel-dark shadow-sm divide-y divide-line dark:divide-line-dark">
+    <button type="button" class="btn icon-btn" id="theme-toggle" aria-label="Switch colour theme" title="Switch theme">
+      <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <path d="M21 13.2A8.6 8.6 0 0 1 10.8 3a8.6 8.6 0 1 0 10.2 10.2Z"/>
+      </svg>
+    </button>
+  </header>
 
-        <section class="p-6">
-          {{ f.eyebrow("Audio") }}
-          <label for="audio_files" class="cursor-pointer block rounded-xl border-2 border-dashed border-line dark:border-line-dark hover:border-amber dark:hover:border-amber-dark transition-colors p-6 text-center">
-            <svg class="mx-auto h-7 w-7 text-muted dark:text-muted-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5" />
+  <main class="workspace">
+
+    <form id="run-form" class="stack" hx-post="/run" hx-target="#status-panel" hx-swap="innerHTML"
+          hx-encoding="multipart/form-data" hx-disabled-elt="find button[type=submit]">
+
+      <!-- 1 · Audio ------------------------------------------------------ -->
+      <section class="card">
+        {{ f.card_head(1, "Audio") }}
+        <div class="card-body tight">
+          <label class="dropzone" id="dropzone" for="audio_files">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/>
             </svg>
-            <span class="mt-2 block text-sm">Drop one or more audio files here, or click to browse</span>
-            <span class="mt-1 block text-xs text-muted dark:text-muted-dark">mp3, m4a, wav, flac, ogg, wma, aac</span>
+            <b>Drop your recordings here</b>
+            <span class="hint">or click to browse — several files run one after another</span>
+            <span class="hint">{{ extension_list }}</span>
           </label>
-          <input type="file" id="audio_files" name="audio_files" multiple accept="audio/*"
-                 class="hidden" onchange="updateFileList(this)">
-          <div id="file-list" class="mt-3 flex flex-wrap gap-1.5"></div>
-        </section>
+          <input type="file" id="audio_files" name="audio_files" multiple class="sr-only"
+                 accept="{{ accepted_extensions }},audio/*,video/*">
+          <div class="filelist" id="file-list"></div>
+        </div>
+      </section>
 
-        <section class="p-6 flex flex-col gap-4">
-          {{ f.eyebrow("Transcription") }}
-          {{ f.select_field("language", "Audio language", languages, "auto") }}
-          {{ f.select_field("model", "Whisper model", models, default_model) }}
-          {{ f.radio_pills("mode", "Pipeline mode", modes, "full", onchange="handleModeChange(this)") }}
-        </section>
+      <!-- 2 · Transcription --------------------------------------------- -->
+      <section class="card">
+        {{ f.card_head(2, "Transcription") }}
+        <div class="card-body">
+          <div class="field-row">
+            {{ f.select_field("language", "Spoken language", languages, default_language) }}
+            {{ f.select_field("model", "Whisper model", models, default_model) }}
+          </div>
+          {{ f.segmented("mode", "What should it produce?", modes, default_mode,
+                         onchange="onModeChange(this)", needs_ollama=["full", "clean", "summary"]) }}
+          <p class="notice is-warn hidden" id="ollama-notice">
+            Ollama is not available, so cleanup and summary are switched off. You can still get the
+            raw transcript.
+          </p>
+        </div>
+      </section>
 
-        <section class="p-6 flex flex-col gap-4">
-          {{ f.eyebrow("Speakers") }}
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" id="diarize" name="diarize" value="true" checked onchange="toggleSpeakerFields(this)"
-                   class="h-4 w-4 rounded border-line dark:border-line-dark text-amber focus-visible:ring-2 focus-visible:ring-amber/40">
-            <span class="text-sm text-ink dark:text-ink-dark">Identify speakers (diarization)</span>
+      <!-- 3 · Speakers --------------------------------------------------- -->
+      <section class="card">
+        {{ f.card_head(3, "Speakers") }}
+        <div class="card-body">
+          <label class="switch-row">
+            <span class="switch-text">
+              <b>Identify who is speaking</b>
+              <span>Diarization — needs a HuggingFace token</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="diarize" name="diarize" value="true" checked onchange="onDiarizeChange(this)">
+              <span class="switch-track"></span>
+            </span>
           </label>
-          <div id="speaker-fields" class="flex flex-col gap-4">
-            {{ f.select_field("speakers", "Number of speakers", speaker_counts, "auto") }}
+
+          <div id="speaker-fields" class="stack stack-tight">
+            <div class="field">
+              <label class="label" for="speakers">How many speakers?</label>
+              <div class="field-inline">
+                <select class="select" id="speakers" name="speakers" onchange="onSpeakerCountChange(this)">
+                  {% for value, text in speaker_counts %}
+                  <option value="{{ value }}">{{ text }}</option>
+                  {% endfor %}
+                </select>
+                <input class="input hidden" type="number" id="speakers_custom" name="speakers_custom"
+                       min="1" step="1" value="{{ listed_speakers + 1 }}" aria-label="Exact number of speakers">
+              </div>
+              <p class="hint">Leave on Auto unless you know the exact number.</p>
+            </div>
             <div id="speaker-names-wrapper">
-              {{ f.text_field("speaker_names", "Speaker names, in order (single file only)", "Alex,Taylor") }}
+              {{ f.text_field("speaker_names", "Speaker names", "Alex, Taylor",
+                              hint="In order of first appearance. Single file only.") }}
+              <p class="notice is-warn hidden" id="speaker-count-notice"></p>
             </div>
           </div>
+
           <div id="meeting-name-wrapper">
-            {{ f.text_field("meeting_name", "Meeting name (single file only)", "Uses the filename if left blank") }}
+            {{ f.text_field("meeting_name", "Meeting name", "Defaults to the file name",
+                            hint="Used for the title and the exported file name. Single file only.") }}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="p-6 flex flex-col gap-4">
-          {{ f.eyebrow("Export") }}
-          {{ f.select_field("format", "Export format", formats, default_format) }}
+      <!-- 4 · Export ----------------------------------------------------- -->
+      <section class="card">
+        {{ f.card_head(4, "Export") }}
+        <div class="card-body">
+          {{ f.segmented("format", "File format", formats, default_format, style="pill") }}
           <div id="export-content-field">
-            {{ f.radio_pills("export_content", "Export content", export_contents, default_export_content) }}
+            {{ f.segmented("export_content", "What goes in the file", export_contents, default_export_content,
+                           needs_ollama=["summary"]) }}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <details class="p-6 group">
-          <summary class="cursor-pointer select-none text-xs font-semibold tracking-widest uppercase text-muted dark:text-muted-dark">
-            Advanced settings
-          </summary>
-          <div class="mt-5 flex flex-col gap-4">
-            {{ f.text_field("cleanup_model", "Ollama model for cleanup", value=default_cleanup_model) }}
-            {{ f.text_field("summary_model", "Ollama model for summary", value=default_summary_model) }}
-            {{ f.select_field("summary_language", "Summary language", summary_languages, "same") }}
+      <!-- Advanced -------------------------------------------------------- -->
+      <details class="card">
+        <summary>Advanced</summary>
+        <div class="card-body">
+          {% call f.needs_ollama("Local model settings") %}
+          <div class="field-row">
+            {{ f.model_field("cleanup_model", "Ollama model · cleanup", default_cleanup_model) }}
+            {{ f.model_field("summary_model", "Ollama model · summary", default_summary_model) }}
           </div>
-        </details>
+          {{ f.select_field("summary_language", "Summary language", summary_languages, default_summary_language) }}
+          {% endcall %}
 
-        <section class="p-6">
-          <button type="submit"
-                  class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber dark:bg-amber-dark hover:bg-amber-hover dark:hover:bg-amber-hover-dark text-white font-medium py-3 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/50 dark:focus-visible:ring-amber-dark/50">
-            <span class="hidden in-[.htmx-request]:inline-flex items-center gap-2">
-              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-              </svg>
-              Starting…
+          <div id="parallel-field" class="field hidden">
+            <label class="label" for="parallel_workers">Files at a time</label>
+            <select class="select" id="parallel_workers" name="parallel_workers">
+              {% for n in range(1, max_workers + 1) %}
+              <option value="{{ n }}">{{ n }}{{ " (one after another)" if n == 1 }}</option>
+              {% endfor %}
+            </select>
+            <p class="hint">
+              Each worker loads its own Whisper model, so more workers means proportionally more
+              memory — and 'Automatic' picks a smaller model to fit. Only applies to several files.
+            </p>
+          </div>
+        </div>
+      </details>
+
+      <!-- Submit ---------------------------------------------------------- -->
+      <section class="card">
+        <div class="submit-bar">
+          <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+            <span class="idle-label">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Generate notes
             </span>
-            <span class="in-[.htmx-request]:hidden inline-flex items-center gap-2">
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              Generate
-            </span>
+            <span class="busy-label">{{ f.icon("spinner") }} Starting…</span>
           </button>
-        </section>
-      </form>
+          <p class="submit-note" id="submit-note">Add a recording to get started</p>
+        </div>
+      </section>
+    </form>
 
-      <div class="lg:col-span-2 lg:sticky lg:top-10 rounded-2xl border border-line dark:border-line-dark bg-panel dark:bg-panel-dark shadow-sm p-6">
-        {{ f.eyebrow("Log & results") }}
+    <aside class="run-column">
+      <section class="card">
         <div id="status-panel">
           {% include "_status.html" %}
         </div>
-      </div>
-    </div>
-  </div>
+      </section>
+    </aside>
+  </main>
 
   <script>
-    function toggleSpeakerFields(checkbox) {
-      document.getElementById('speaker-fields').classList.toggle('hidden', !checkbox.checked);
+    /* ── Theme ─────────────────────────────────────────────────────────── */
+    const SUN = "M12 5.5v-2M12 20.5v-2M18.4 18.4l-1.4-1.4M7 7 5.6 5.6M20.5 12h-2M5.5 12h-2M18.4 5.6 17 7M7 17l-1.4 1.4M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z";
+    const MOON = "M21 13.2A8.6 8.6 0 0 1 10.8 3a8.6 8.6 0 1 0 10.2 10.2Z";
+
+    function paintThemeIcon() {
+      const dark = document.documentElement.getAttribute("data-theme") !== "light";
+      document.querySelector("#theme-icon path").setAttribute("d", dark ? MOON : SUN);
+    }
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("minute-ai-theme", next); } catch (e) {}
+      paintThemeIcon();
+    });
+    paintThemeIcon();
+
+    /* ── Health chips ──────────────────────────────────────────────────── */
+    function chip(state, label, tip) {
+      const el = document.createElement("span");
+      el.className = `chip is-${state}`;
+      el.title = tip;
+      el.innerHTML = '<span class="dot"></span>';
+      el.appendChild(document.createTextNode(label));
+      return el;
     }
 
-    function handleModeChange(radio) {
-      const hasSummary = radio.value === 'full' || radio.value === 'summary';
-      document.getElementById('export-content-field').classList.toggle('hidden', !hasSummary);
+    /* Three states, not two: a freshly installed Ollama is up but has no models
+       yet, and calling that "offline" sends you to check the wrong thing. */
+    function ollamaChip(health) {
+      if (!health.ollama_online) {
+        return chip("bad", "Ollama offline",
+          `Nothing answering at ${health.ollama_host}. Cleanup and summary will be skipped — you still get the transcript.`);
+      }
+      if (!health.ollama_models.length) {
+        return chip("warn", "Ollama · no models",
+          `Running at ${health.ollama_host}, but no model is installed.\nRun: ollama pull llama3.2:3b`);
+      }
+      const n = health.ollama_models.length;
+      return chip("ok", `Ollama · ${n} model${n === 1 ? "" : "s"}`,
+        `Reachable at ${health.ollama_host}.\nInstalled: ${health.ollama_models.join(", ")}`);
     }
 
-    function updateFileList(input) {
-      const files = Array.from(input.files);
-      const list = document.getElementById('file-list');
-      list.innerHTML = '';
-      files.forEach((file) => {
-        const pill = document.createElement('span');
-        pill.className = 'inline-block rounded-full bg-amber/10 dark:bg-amber-dark/15 text-amber dark:text-amber-dark text-xs px-2.5 py-1';
-        pill.textContent = file.name;
-        list.appendChild(pill);
+    async function loadHealth() {
+      const box = document.getElementById("health-chips");
+      let health = null;
+      try {
+        health = await (await fetch("/api/health")).json();
+      } catch (e) {
+        box.replaceChildren(chip("warn", "Status unavailable", "Could not reach the local server."));
+        // Leave the model fields as text inputs, but stop them claiming to be
+        // still checking something that will never answer.
+        document.querySelectorAll("[data-hint-for]").forEach((hint) => { hint.textContent = ""; });
+        return;
+      }
+
+      const chips = [
+        chip("ok", health.hardware, `Whisper will transcribe on the ${health.device}.`),
+        ollamaChip(health),
+        health.diarization_ready
+          ? chip("ok", "Speaker ID on",
+                 "A HuggingFace token is set in config.py, so speakers can be told apart.\nIt is not verified until a run starts.")
+          : chip("warn", "Speaker ID off",
+                 "HF_TOKEN is missing from config.py. Speakers cannot be told apart — the transcript will have no labels."),
+      ];
+      if (!health.ffmpeg) {
+        chips.push(chip("bad", "ffmpeg missing", "ffmpeg is not on PATH, so audio files cannot be decoded."));
+      }
+      box.replaceChildren(...chips);
+
+      if (!health.diarization_ready) {
+        const toggle = document.getElementById("diarize");
+        if (toggle.checked) { toggle.checked = false; onDiarizeChange(toggle); }
+      }
+      applyOllamaAvailability(health);
+      fillModelPickers(health);
+      labelWhisperModels(health);
+    }
+
+    /* Everything downstream of the LLM is switched off when Ollama cannot run
+       anything: picking it would only produce a silent no-op at run time. */
+    function applyOllamaAvailability(health) {
+      const usable = !!health.ollama_usable;
+
+      document.querySelectorAll("[data-needs-ollama]").forEach((input) => {
+        input.disabled = !usable;
+        const seg = input.closest(".seg");
+        if (seg) seg.classList.toggle("is-disabled", !usable);
       });
 
-      const isMultiFile = files.length > 1;
-      document.getElementById('speaker-names-wrapper').classList.toggle('hidden', isMultiFile);
-      document.getElementById('meeting-name-wrapper').classList.toggle('hidden', isMultiFile);
+      // fieldset[disabled] also keeps the fields out of the submitted form.
+      document.querySelectorAll("fieldset[data-needs-ollama-group], fieldset.needs-ollama")
+        .forEach((group) => { group.disabled = !usable; });
+
+      document.getElementById("ollama-notice").classList.toggle("hidden", usable);
+
+      if (!usable) {
+        // Fall back to whatever is still selectable, so the form is never left
+        // pointing at a disabled option.
+        selectFirstEnabled("mode");
+        selectFirstEnabled("export_content");
+      }
+      const mode = document.querySelector('input[name="mode"]:checked');
+      if (mode) onModeChange(mode);
     }
 
-    document.body.addEventListener('htmx:afterSwap', (evt) => {
-      if (evt.detail.target && evt.detail.target.id === 'status-panel') {
-        const logBox = document.getElementById('log-box');
-        if (logBox) logBox.scrollTop = logBox.scrollHeight;
+    function selectFirstEnabled(name) {
+      const options = [...document.querySelectorAll(`input[name="${name}"]`)];
+      if (options.some((o) => o.checked && !o.disabled)) return;
+      const fallback = options.find((o) => !o.disabled);
+      if (fallback) fallback.checked = true;
+    }
+
+    /* The dropdowns list exactly what Ollama has — nothing else is runnable. */
+    function fillModelPickers(health) {
+      document.querySelectorAll("[data-model-field] select").forEach((select) => {
+        const hint = document.querySelector(`[data-hint-for="${select.id}"]`);
+        const configured = select.dataset.configured || "";
+        const installed = health.ollama_models || [];
+
+        if (!installed.length) {
+          select.disabled = true;
+          if (hint) {
+            hint.textContent = health.ollama_online
+              ? "Ollama has no models installed — run: ollama pull llama3.2:3b"
+              : "Ollama is not reachable.";
+          }
+          return;
+        }
+
+        const preferred = select.id === "summary_model" ? health.summary_model : health.cleanup_model;
+        select.replaceChildren(...installed.map((model) => {
+          const option = document.createElement("option");
+          option.value = model;
+          option.textContent = model;
+          return option;
+        }));
+        select.value = preferred;
+        select.disabled = false;
+
+        const matched = installed.some((m) => m === configured || m.split(":")[0] === configured);
+        if (hint) {
+          hint.textContent = matched || !configured
+            ? ""
+            : `config.py asks for “${configured}”, which is not installed — using ${preferred}.`;
+        }
+      });
+    }
+
+    /* Says which Whisper models are on disk and what the others would cost,
+       so nobody picks a 3 GB download by accident. */
+    function labelWhisperModels(health) {
+      const select = document.getElementById("model");
+      const installed = health.whisper_installed || [];
+      const sizes = health.whisper_download_mb || {};
+
+      [...select.options].forEach((option) => {
+        const base = option.textContent.split("  ·  ")[0];
+        if (option.value === "auto") { option.textContent = base; return; }
+        if (installed.includes(option.value)) {
+          option.textContent = `${base}  ·  ready`;
+        } else {
+          const mb = sizes[option.value];
+          option.textContent = mb ? `${base}  ·  downloads ${formatSize(mb)}` : base;
+        }
+      });
+    }
+
+    function formatSize(mb) {
+      return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+    }
+    loadHealth();
+
+    /* ── Conditional fields ────────────────────────────────────────────── */
+    function onSpeakerCountChange(el) {
+      const custom = document.getElementById("speakers_custom");
+      const isCustom = el.value === "custom";
+      custom.classList.toggle("hidden", !isCustom);
+      if (isCustom) custom.focus();
+      checkSpeakerNames();
+    }
+
+    function onDiarizeChange(el) {
+      document.getElementById("speaker-fields").classList.toggle("hidden", !el.checked);
+    }
+    function onModeChange(el) {
+      const producesSummary = el.value === "full" || el.value === "summary";
+      document.getElementById("export-content-field").classList.toggle("hidden", !producesSummary);
+      if (!producesSummary) {
+        const full = document.querySelector('input[name="export_content"][value="full"]');
+        if (full) full.checked = true;
+      }
+    }
+
+    /* ── File selection ────────────────────────────────────────────────── */
+    const input = document.getElementById("audio_files");
+    const dropzone = document.getElementById("dropzone");
+    const fileList = document.getElementById("file-list");
+    let chosen = [];
+
+    function humanSize(bytes) {
+      const units = ["B", "KB", "MB", "GB"];
+      let n = bytes, i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+    }
+
+    function syncInput() {
+      const dt = new DataTransfer();
+      chosen.forEach((file) => dt.items.add(file));
+      input.files = dt.files;
+      renderFiles();
+    }
+
+    function renderFiles() {
+      fileList.innerHTML = "";
+      chosen.forEach((file, index) => {
+        const row = document.createElement("div");
+        row.className = "filechip";
+        row.innerHTML = `
+          <svg class="ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.7 12h1.1M6.75 9.5v5M10.25 5.5v13M13.75 7.75v8.5M17.25 10.25v3.5M21.2 12h1.1"/></svg>
+          <span class="fname"></span>
+          <span class="fsize">${humanSize(file.size)}</span>
+          <button type="button" class="fdrop" aria-label="Remove file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>`;
+        row.querySelector(".fname").textContent = file.name;
+        row.querySelector(".fdrop").addEventListener("click", () => {
+          chosen.splice(index, 1);
+          syncInput();
+        });
+        fileList.appendChild(row);
+      });
+
+      const multi = chosen.length > 1;
+      document.getElementById("speaker-names-wrapper").classList.toggle("hidden", multi);
+      document.getElementById("meeting-name-wrapper").classList.toggle("hidden", multi);
+      // Running several files at once only means anything with several files.
+      document.getElementById("parallel-field").classList.toggle("hidden", !multi);
+      if (!multi) document.getElementById("parallel_workers").value = "1";
+
+      document.getElementById("submit-btn").disabled = chosen.length === 0;
+      updateSubmitNote();
+      checkSpeakerNames();
+    }
+
+    function updateSubmitNote() {
+      const note = document.getElementById("submit-note");
+      if (!chosen.length) {
+        note.textContent = "Add a recording to get started";
+        return;
+      }
+      const workers = parseInt(document.getElementById("parallel_workers").value, 10) || 1;
+      const plural = chosen.length === 1 ? "" : "s";
+      note.textContent = chosen.length > 1 && workers > 1
+        ? `${chosen.length} files ready · ${workers} at a time`
+        : `${chosen.length} file${plural} ready · one after another`;
+    }
+
+    /* The transcript only reveals a mismatch after the run, so say it now —
+       but only when an exact speaker count was chosen, since on Auto nobody
+       knows how many there will be until diarization has run. */
+    function checkSpeakerNames() {
+      const notice = document.getElementById("speaker-count-notice");
+      const names = document.getElementById("speaker_names").value
+        .split(",").map((n) => n.trim()).filter(Boolean);
+      const picked = document.getElementById("speakers").value;
+      const expected = picked === "custom"
+        ? document.getElementById("speakers_custom").value
+        : picked;
+
+      if (!names.length || expected === "auto" || chosen.length > 1) {
+        notice.classList.add("hidden");
+        return;
+      }
+      const count = parseInt(expected, 10);
+      if (!count || count < 1) {
+        notice.classList.add("hidden");
+        return;
+      }
+      if (names.length === count) {
+        notice.classList.add("hidden");
+      } else if (names.length > count) {
+        notice.textContent = `${names.length} names for ${count} speaker${count === 1 ? "" : "s"} — `
+          + `the last ${names.length - count} will be ignored.`;
+        notice.classList.remove("hidden");
+      } else {
+        notice.textContent = `${names.length} name${names.length === 1 ? "" : "s"} for ${count} speakers — `
+          + `the rest keep their SPEAKER_xx labels.`;
+        notice.classList.remove("hidden");
+      }
+    }
+
+    input.addEventListener("change", () => {
+      chosen = Array.from(input.files);
+      renderFiles();
+    });
+
+    ["dragenter", "dragover"].forEach((type) =>
+      dropzone.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("is-over"); }));
+    ["dragleave", "drop"].forEach((type) =>
+      dropzone.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.remove("is-over"); }));
+    dropzone.addEventListener("drop", (e) => {
+      chosen = chosen.concat(Array.from(e.dataTransfer.files));
+      syncInput();
+    });
+
+    document.getElementById("parallel_workers").addEventListener("change", updateSubmitNote);
+    document.getElementById("speaker_names").addEventListener("input", checkSpeakerNames);
+    document.getElementById("speakers").addEventListener("change", checkSpeakerNames);
+    document.getElementById("speakers_custom").addEventListener("input", checkSpeakerNames);
+
+    document.getElementById("run-form").addEventListener("submit", (e) => {
+      if (!chosen.length) {
+        e.preventDefault();
+        dropzone.classList.add("is-over");
+        setTimeout(() => dropzone.classList.remove("is-over"), 900);
       }
     });
+
+    /* ── Result tabs, copy buttons, log autoscroll ─────────────────────── */
+    document.body.addEventListener("click", (e) => {
+      const tab = e.target.closest("[data-tab]");
+      if (tab) {
+        const group = tab.closest(".result");
+        group.querySelectorAll("[data-tab]").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+        group.querySelectorAll("[data-panel]").forEach((p) =>
+          p.toggleAttribute("data-active", p.dataset.panel === tab.dataset.tab));
+        return;
+      }
+      const copy = e.target.closest("[data-copy]");
+      if (copy) {
+        const source = document.getElementById(copy.dataset.copy);
+        if (!source) return;
+        navigator.clipboard.writeText(source.innerText).then(() => {
+          const label = copy.querySelector("span");
+          const original = label.textContent;
+          label.textContent = "Copied";
+          setTimeout(() => { label.textContent = original; }, 1400);
+        }).catch(() => {});
+      }
+    });
+
+    function stickLogToBottom() {
+      const box = document.getElementById("log-box");
+      if (box) box.scrollTop = box.scrollHeight;
+    }
+    document.body.addEventListener("htmx:afterSwap", (evt) => {
+      if (evt.detail.target && evt.detail.target.id === "status-panel") stickLogToBottom();
+    });
+    stickLogToBottom();
   </script>
 </body>
 </html>
