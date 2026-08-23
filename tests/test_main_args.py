@@ -24,6 +24,7 @@ def make_args(**overrides):
         parallel=False,
         parallel_workers=2,
         force=False,
+        recursive=False,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -125,3 +126,82 @@ class TestResolveMeetingName:
     def test_falls_back_to_filename(self):
         args = make_args(meeting_name=None)
         assert main.resolve_meeting_name("inputs/team_sync-notes.wav", args) == "Team Sync Notes"
+
+
+class TestValidateArgsExtra:
+    def test_example_placeholder_token_is_caught(self, monkeypatch):
+        # Regression: the check only knew "hf_XXXXXXXXXX", while
+        # config.example.py shipped "hf_INSERT_HERE" — so a fresh copy of the
+        # example passed validation and failed deep inside pyannote instead.
+        monkeypatch.setattr(main.config, "HF_TOKEN", "hf_INSERT_HERE")
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args())
+
+    def test_empty_token_is_caught(self, monkeypatch):
+        monkeypatch.setattr(main.config, "HF_TOKEN", "")
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args())
+
+    def test_real_looking_token_passes(self, monkeypatch):
+        monkeypatch.setattr(main.config, "HF_TOKEN", "hf_aRealLookingToken123")
+        main.validate_args(make_args())
+
+    def test_zero_speakers_is_rejected(self):
+        # Regression: 0 is falsy, so it slipped past the diarization check and
+        # was handed to pyannote as min_speakers=0.
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args(speakers="0"))
+
+    def test_negative_speakers_is_rejected(self):
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args(speakers="-2"))
+
+    def test_zero_parallel_workers_is_rejected(self):
+        # ThreadPoolExecutor(max_workers=0) raises ValueError deep in the batch.
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args(parallel_workers=0))
+
+    def test_srt_cannot_carry_a_summary_alone(self):
+        with pytest.raises(SystemExit):
+            main.validate_args(make_args(format="srt", export_content="summary"))
+
+    def test_srt_with_full_content_is_fine(self):
+        main.validate_args(make_args(format="srt", export_content="full"))
+
+
+class TestHfTokenPlaceholder:
+    def test_known_placeholders(self):
+        for value in ("", "  ", "hf_INSERT_HERE", "hf_XXXXXXXXXX", "none", "your-token"):
+            assert main.hf_token_is_placeholder(value) is True
+
+    def test_real_token(self):
+        assert main.hf_token_is_placeholder("hf_abcDEF123456") is False
+
+
+class TestWarnAboutIgnoredFlags:
+    def test_parallel_on_a_single_file_warns(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="minute-ai"):
+            main.warn_about_ignored_flags(make_args(parallel=True), is_batch=False)
+        assert any("--parallel" in r.message for r in caplog.records)
+
+    def test_meeting_name_in_batch_warns(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="minute-ai"):
+            main.warn_about_ignored_flags(make_args(meeting_name="Q3"), is_batch=True)
+        assert any("--meeting-name" in r.message for r in caplog.records)
+
+
+class TestParseArgs:
+    def test_defaults(self):
+        args = main.parse_args(["inputs/a.wav"])
+        assert args.audio == ["inputs/a.wav"]
+        assert args.recursive is False
+
+    def test_srt_is_an_accepted_format(self):
+        assert main.parse_args(["a.wav", "--format", "srt"]).format == "srt"
+
+    def test_recursive_flag(self):
+        assert main.parse_args(["inputs/", "-r"]).recursive is True
