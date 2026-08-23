@@ -6,7 +6,7 @@
 
 **Turn meeting recordings into structured notes, entirely on your own machine.**
 
-[![CI](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yml)
+[![CI](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yaml/badge.svg)](https://github.com/RenatoGallicola/minute-ai/actions/workflows/ci.yaml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-336-brightgreen.svg)](tests/)
