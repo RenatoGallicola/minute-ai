@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/logo.png" alt="" width="84">
+
 # minute-ai
 
 **Turn meeting recordings into structured notes — entirely on your own machine.**
