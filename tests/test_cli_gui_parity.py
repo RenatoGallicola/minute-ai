@@ -35,6 +35,9 @@ GUI_EXEMPT = {
     # Writing anywhere on the server from a web form is a footgun; the GUI uses
     # config.DEFAULT_OUTPUT_DIR and hands the files back as downloads.
     "output-dir",
+    # Only exists because multi-line text is awkward on a command line; the GUI
+    # has a textarea, which is the same capability.
+    "summary-prompt-file",
 }
 
 # Form fields with no direct CLI twin, and why.
@@ -95,6 +98,10 @@ class TestChoiceParity:
         offered = self._values(gui.SUMMARY_LANGUAGES) - {"same"}
         assert offered == set(languages.LANGUAGE_NAMES)
 
+    def test_summary_presets_match(self):
+        from src import prompts
+        assert self._values(gui.SUMMARY_PRESETS) == set(prompts.PRESET_KEYS)
+
 
 class TestValidationParity:
     """The same combination must be refused by both front ends."""
@@ -108,6 +115,7 @@ class TestValidationParity:
             audio=["a.wav"], language="auto", speakers="auto", speaker_names=None,
             model="medium", no_diarize=False, meeting_name=None, mode="full",
             cleanup_model="m", summary_model="m", summary_language="same",
+            summary_preset="meeting", summary_prompt=None, summary_prompt_file=None,
             output_dir="outputs", format="md", export_content="full",
             parallel=False, parallel_workers=2, force=False, recursive=False,
         )
@@ -133,6 +141,16 @@ class TestValidationParity:
     def test_unknown_language(self):
         assert self._cli_rejects(language="xx")
         assert gui._validate_submission(False, "full", "full", "md", "auto", language="xx")
+
+    def test_custom_preset_without_instructions(self):
+        assert self._cli_rejects(summary_preset="custom", summary_prompt=None)
+        assert gui._validate_submission(False, "full", "full", "md", "auto",
+                                        summary_preset="custom", summary_prompt="")
+
+    def test_custom_preset_with_instructions_passes_both(self):
+        assert not self._cli_rejects(summary_preset="custom", summary_prompt="## Risks")
+        assert gui._validate_submission(False, "full", "full", "md", "auto",
+                                        summary_preset="custom", summary_prompt="## Risks") is None
 
     def test_a_valid_combination_passes_both(self):
         assert not self._cli_rejects(language="tr", speakers="3", no_diarize=False)

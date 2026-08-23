@@ -38,6 +38,7 @@ Full usage:
 import argparse
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import config
 from src.batch import collect_audio_files, print_batch_summary, run_batch
@@ -48,6 +49,7 @@ from src.hardware import MODEL_DOWNLOAD_MB, auto_select_model, is_whisper_model_
 from src.languages import is_supported as is_supported_language
 from src.logger import get_logger, setup_logger
 from src.naming import meeting_name_from_path
+from src.prompts import CUSTOM_KEY, DEFAULT_PRESET, PRESET_KEYS
 from src.summarize import summarize_transcript
 from src.transcribe import build_speaker_map, format_transcript, transcribe
 
@@ -164,6 +166,29 @@ def parse_args(argv=None):
         help=f"Ollama model for summary (default: {config.DEFAULT_SUMMARY_MODEL})"
     )
     parser.add_argument(
+        "--summary-preset",
+        default=getattr(config, "DEFAULT_SUMMARY_PRESET", DEFAULT_PRESET),
+        choices=PRESET_KEYS,
+        help=(
+            "What the summary should contain (default: meeting)\n"
+            "  meeting     — decisions and action items\n"
+            "  lecture     — concepts, definitions, examples\n"
+            "  interview   — positions, quotes, follow-ups\n"
+            "  one-on-one  — updates, blockers, next steps\n"
+            "  custom      — use --summary-prompt or --summary-prompt-file"
+        )
+    )
+    parser.add_argument(
+        "--summary-prompt",
+        default=None,
+        help="Instructions replacing the preset. Include {transcript} to take over the whole prompt."
+    )
+    parser.add_argument(
+        "--summary-prompt-file",
+        default=None,
+        help="Read --summary-prompt from a file (easier for multi-line instructions)"
+    )
+    parser.add_argument(
         "--summary-language",
         default=config.DEFAULT_SUMMARY_LANGUAGE,
         help=f"Summary language: 'same', 'it', 'en', etc. (default: {config.DEFAULT_SUMMARY_LANGUAGE})"
@@ -264,6 +289,21 @@ def validate_args(args):
         log.error(f"--summary-language '{args.summary_language}' is not a supported language.")
         sys.exit(1)
 
+    if args.summary_prompt and args.summary_prompt_file:
+        log.error("Use either --summary-prompt or --summary-prompt-file, not both.")
+        sys.exit(1)
+
+    if args.summary_prompt_file:
+        try:
+            args.summary_prompt = Path(args.summary_prompt_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            log.error(f"Cannot read --summary-prompt-file: {exc}")
+            sys.exit(1)
+
+    if args.summary_preset == CUSTOM_KEY and not (args.summary_prompt or "").strip():
+        log.error("--summary-preset custom needs --summary-prompt or --summary-prompt-file.")
+        sys.exit(1)
+
     if args.parallel_workers < 1:
         log.error(f"--parallel-workers must be at least 1, got {args.parallel_workers}")
         sys.exit(1)
@@ -359,6 +399,8 @@ def process_single(audio_path: str, args, is_batch: bool) -> PipelineResult:
             host=config.OLLAMA_HOST,
             transcript_language=result.language,
             summary_language=args.summary_language,
+            preset=args.summary_preset,
+            custom_prompt=args.summary_prompt or "",
             **llm,
         )
     else:

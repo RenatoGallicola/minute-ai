@@ -21,6 +21,8 @@ OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_CLEANUP_MODEL = "llama3.1"
 DEFAULT_SUMMARY_MODEL = "llama3.1"
 DEFAULT_SUMMARY_LANGUAGE = "same"     # same | it | en | fr | etc.
+DEFAULT_SUMMARY_PRESET = "meeting"    # meeting | lecture | interview | one-on-one | custom
+                                      # 'custom' needs --summary-prompt (CLI) or the box in the GUI
 OLLAMA_NUM_CTX = 8192                 # Context window requested from Ollama. Ollama's own
                                       # default is small and silently truncates long prompts.
 OLLAMA_TIMEOUT = 600                  # Seconds to wait for one generation

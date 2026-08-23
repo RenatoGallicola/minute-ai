@@ -44,7 +44,8 @@ def make_args(tmp_path, **overrides):
     defaults = dict(
         audio=[], language="auto", speakers=None, speaker_names=None, model="base",
         no_diarize=False, meeting_name=None, mode="full", cleanup_model="llama3.1",
-        summary_model="llama3.1", summary_language="same", output_dir=str(tmp_path),
+        summary_model="llama3.1", summary_language="same", summary_preset="meeting", summary_prompt=None,
+        summary_prompt_file=None, output_dir=str(tmp_path),
         format="md", export_content="full", parallel=False, parallel_workers=2,
         force=False, recursive=False,
     )
