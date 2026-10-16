@@ -31,7 +31,7 @@ servers hold the audio and the transcript. That is a non-starter for anything co
 performance review, a legal call, an unannounced product decision, patient or client information.
 
 Minute AI does the same job locally. The trade-off is honest: it is slower than a GPU datacentre,
-and a 3B local model does not write as well as a frontier one. In exchange, the recording never
+and an 8B local model does not write as well as a frontier one. In exchange, the recording never
 leaves your disk, there is no account, no subscription and no upload limit.
 
 ## Features
@@ -64,8 +64,11 @@ pip install torch torchvision torchaudio   # CPU build; see pytorch.org for CUDA
 pip install -r requirements.txt
 
 copy config.example.py config.py           # cp on macOS / Linux
-ollama pull llama3.2:3b
+ollama pull llama3.1                       # the default cleanup and summary model
 ```
+
+Any other Ollama model works too: pull it and set `DEFAULT_CLEANUP_MODEL` and
+`DEFAULT_SUMMARY_MODEL` in `config.py`, or pass `--cleanup-model` / `--summary-model`.
 
 Open `config.py` and paste a [HuggingFace token](https://huggingface.co/settings/tokens) into
 `HF_TOKEN`. It is needed to download the diarization model, and you must accept the terms of
